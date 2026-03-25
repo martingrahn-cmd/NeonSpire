@@ -404,6 +404,36 @@ function angleDist(a, b) {
     return d > Math.PI ? PI2 - d : d;
 }
 
+function updatePlayerMesh() {
+    const r = CYLINDER_RADIUS + PLATFORM_DEPTH + PLAYER_SIZE * 0.5;
+    const scaleY = player.ducking ? 0.5 : 1.0;
+    playerMesh.scale.y = scaleY;
+    const halfH = (PLAYER_SIZE * 1.5 * scaleY) / 2;
+    const playerVisualY = player.y + halfH;
+    playerMesh.position.set(
+        r * Math.cos(player.theta),
+        playerVisualY,
+        r * Math.sin(player.theta)
+    );
+    playerMesh.rotation.y = -player.theta + Math.PI / 2;
+
+    playerGlow.position.set(
+        r * Math.cos(player.theta),
+        playerVisualY,
+        r * Math.sin(player.theta)
+    );
+
+    if (isDashing) {
+        playerMesh.material.color.setHex(0xffffff);
+        playerGlow.material.opacity = 0.5;
+        playerGlow.scale.set(2, 1.5, 2);
+    } else {
+        playerMesh.material.color.setHex(0x00ffff);
+        playerGlow.material.opacity = 0.15;
+        playerGlow.scale.set(1, 1, 1);
+    }
+}
+
 function updatePlayer(dt) {
     if (player.isDead) return;
 
@@ -596,38 +626,7 @@ function updatePlayer(dt) {
         victory();
     }
 
-    // Update player mesh position - on the outer surface of the cylinder
-    const r = CYLINDER_RADIUS + PLATFORM_DEPTH + PLAYER_SIZE * 0.5;
-    const scaleY = player.ducking ? 0.5 : 1.0;
-    playerMesh.scale.y = scaleY;
-    // Player feet at player.y, center offset by half height
-    const halfH = (PLAYER_SIZE * 1.5 * scaleY) / 2;
-    const playerVisualY = player.y + halfH;
-    playerMesh.position.set(
-        r * Math.cos(player.theta),
-        playerVisualY,
-        r * Math.sin(player.theta)
-    );
-    // Face outward from cylinder
-    playerMesh.rotation.y = -player.theta + Math.PI / 2;
-
-    playerGlow.position.set(
-        r * Math.cos(player.theta),
-        playerVisualY,
-        r * Math.sin(player.theta)
-    );
-
-    // Dash visual
-    if (isDashing) {
-        playerMesh.material.color.setHex(0xffffff);
-        playerGlow.material.opacity = 0.5;
-        playerGlow.scale.set(2, 1.5, 2);
-    } else {
-        playerMesh.material.color.setHex(0x00ffff);
-        playerGlow.material.opacity = 0.2;
-        playerGlow.scale.set(1, 1, 1);
-    }
-
+    updatePlayerMesh();
     updateTrail();
 }
 
@@ -883,8 +882,10 @@ function gameLoop(time) {
     if (state === 'intro') {
         introTimer += dt;
         updateIntroCamera(time);
+        updatePlayerMesh(); // show player on tower during intro
     } else if (state === 'countdown') {
         updateCountdown(dt);
+        updatePlayerMesh(); // show player on platform during countdown
     } else if (state === 'playing') {
         updatePlayer(dt);
         updatePlatforms(dt);
@@ -928,6 +929,7 @@ function startGame() {
     document.getElementById('victory-screen').classList.add('hidden');
     document.getElementById('hud').classList.remove('hidden');
     resetGame();
+    updatePlayerMesh(); // position mesh immediately
 
     if (!hasSeenIntro) {
         // First time: cinematic intro → countdown → play
