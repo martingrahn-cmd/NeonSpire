@@ -744,25 +744,23 @@ function updateEnemies(dt) {
 }
 
 function updateCamera() {
-    // Side-on view: camera at player height, slightly above to see next platforms
-    const targetY = player.y + 1.5;
+    // Camera slightly above player, looking straight on
+    const targetY = player.y + 1.0;
     camera.position.y += (targetY - camera.position.y) * 0.06;
 
-    // Camera on the same side as the player, slightly behind in movement direction
-    const camOffset = 0.35;
-    const camAngle = player.theta + camOffset;
+    // Camera directly in front of the player (same theta, no offset)
+    const camAngle = player.theta;
     const camR = 10;
     const targetX = camR * Math.cos(camAngle);
     const targetZ = camR * Math.sin(camAngle);
     camera.position.x += (targetX - camera.position.x) * 0.06;
     camera.position.z += (targetZ - camera.position.z) * 0.06;
 
-    // Look at the player position on the cylinder, slightly up to show what's coming
-    const lookAngle = player.theta - 0.15;
-    const lookR = CYLINDER_RADIUS + PLATFORM_DEPTH;
-    const lookX = lookR * Math.cos(lookAngle);
-    const lookZ = lookR * Math.sin(lookAngle);
-    camera.lookAt(lookX, player.y + 1.5, lookZ);
+    // Look at player on cylinder surface, slightly up to see next platform
+    const lookR = CYLINDER_RADIUS + PLATFORM_DEPTH * 0.5;
+    const lookX = lookR * Math.cos(player.theta);
+    const lookZ = lookR * Math.sin(player.theta);
+    camera.lookAt(lookX, player.y + 1.0, lookZ);
 }
 
 function updateIntroCamera(time) {
@@ -801,17 +799,16 @@ function updateIntroCamera(time) {
 function updateCountdown(dt) {
     countdownTimer += dt;
 
-    // Camera settles into gameplay position (matching updateCamera offset)
-    const camAngle = player.theta + 0.35;
+    // Camera settles into gameplay position (matching updateCamera)
+    const camAngle = player.theta;
     const r = 10;
     const targetX = r * Math.cos(camAngle);
     const targetZ = r * Math.sin(camAngle);
     camera.position.x += (targetX - camera.position.x) * 0.1;
     camera.position.z += (targetZ - camera.position.z) * 0.1;
-    camera.position.y += (player.y + 1.5 - camera.position.y) * 0.1;
-    const lookAngle = player.theta - 0.15;
-    const lookR = CYLINDER_RADIUS + PLATFORM_DEPTH;
-    camera.lookAt(lookR * Math.cos(lookAngle), player.y + 1.5, lookR * Math.sin(lookAngle));
+    camera.position.y += (player.y + 1.0 - camera.position.y) * 0.1;
+    const lookR = CYLINDER_RADIUS + PLATFORM_DEPTH * 0.5;
+    camera.lookAt(lookR * Math.cos(player.theta), player.y + 1.0, lookR * Math.sin(player.theta));
 
     if (countdownTimer >= 1.0 && countdownNumber === 3) {
         countdownNumber = 2;
@@ -943,10 +940,10 @@ function startGame() {
         countdownNumber = 3;
         showCountdown(3);
         // Snap camera to player position immediately
-        const camAngle = player.theta + 0.35;
+        const camAngle = player.theta;
         camera.position.set(
             10 * Math.cos(camAngle),
-            player.y + 1.5,
+            player.y + 1.0,
             10 * Math.sin(camAngle)
         );
     }
