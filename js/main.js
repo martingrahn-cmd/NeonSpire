@@ -42,13 +42,14 @@ let speedMultiplier = 1;
 let introTimer = 0;
 let countdownTimer = 0;
 let countdownNumber = 3;
+let hasSeenIntro = false; // only show intro once per session
 
 // Player state (polar coords)
 const player = {
     theta: 0,
     y: 1.5,
     vy: 0,
-    direction: 1, // 1 = clockwise, -1 = counter-clockwise
+    direction: -1, // -1 = CCW (left-to-right visually), 1 = CW
     grounded: false,
     ducking: false,
     isDead: false,
@@ -362,8 +363,8 @@ function resetGame() {
     player.theta = 0;
     player.y = 0.5 + PLATFORM_THICKNESS / 2; // on top of first platform (y=0.5)
     player.vy = 0;
-    player.direction = 1;
-    player.grounded = false;
+    player.direction = -1; // CCW = left-to-right visually
+    player.grounded = true;
     player.ducking = false;
     player.isDead = false;
     score = 0;
@@ -729,23 +730,26 @@ function updateEnemies(dt) {
 }
 
 function updateCamera() {
-    const targetY = player.y + 2;
+    const targetY = player.y + 2.5;
     camera.position.y += (targetY - camera.position.y) * 0.08;
 
-    // Camera on the SAME side as the player, slightly above and behind
-    const camAngle = player.theta; // same side as player
-    const camR = 8;
-    const camHeight = player.y + 3;
+    // Camera offset: behind and slightly to the side of the player
+    // so the player is visible on the left side of screen (running right)
+    const camOffset = 0.4; // radians behind the player's direction
+    const camAngle = player.theta + camOffset;
+    const camR = 9;
     const targetX = camR * Math.cos(camAngle);
     const targetZ = camR * Math.sin(camAngle);
     camera.position.x += (targetX - camera.position.x) * 0.08;
     camera.position.z += (targetZ - camera.position.z) * 0.08;
 
-    // Look at a point slightly above the player on the cylinder
-    const lookR = CYLINDER_RADIUS * 0.3;
-    const lookX = lookR * Math.cos(player.theta);
-    const lookZ = lookR * Math.sin(player.theta);
-    camera.lookAt(lookX, player.y + 1.5, lookZ);
+    // Look slightly ahead of the player (in movement direction)
+    const lookAhead = -0.3; // radians ahead in CCW direction
+    const lookAngle = player.theta + lookAhead;
+    const lookR = CYLINDER_RADIUS * 0.5;
+    const lookX = lookR * Math.cos(lookAngle);
+    const lookZ = lookR * Math.sin(lookAngle);
+    camera.lookAt(lookX, player.y + 1, lookZ);
 }
 
 function updateIntroCamera(time) {
@@ -784,15 +788,17 @@ function updateIntroCamera(time) {
 function updateCountdown(dt) {
     countdownTimer += dt;
 
-    // Camera settles into gameplay position
-    const r = 8;
-    const targetX = r * Math.cos(player.theta);
-    const targetZ = r * Math.sin(player.theta);
+    // Camera settles into gameplay position (matching updateCamera offset)
+    const camAngle = player.theta + 0.4;
+    const r = 9;
+    const targetX = r * Math.cos(camAngle);
+    const targetZ = r * Math.sin(camAngle);
     camera.position.x += (targetX - camera.position.x) * 0.1;
     camera.position.z += (targetZ - camera.position.z) * 0.1;
-    camera.position.y += (player.y + 3 - camera.position.y) * 0.1;
-    const lookR = CYLINDER_RADIUS * 0.3;
-    camera.lookAt(lookR * Math.cos(player.theta), player.y + 1.5, lookR * Math.sin(player.theta));
+    camera.position.y += (player.y + 2.5 - camera.position.y) * 0.1;
+    const lookAngle = player.theta - 0.3;
+    const lookR = CYLINDER_RADIUS * 0.5;
+    camera.lookAt(lookR * Math.cos(lookAngle), player.y + 1, lookR * Math.sin(lookAngle));
 
     if (countdownTimer >= 1.0 && countdownNumber === 3) {
         countdownNumber = 2;
@@ -903,14 +909,31 @@ function gameLoop(time) {
 // ─── UI Events ───
 function startGame() {
     audio.init();
-    state = 'intro';
-    introTimer = 0;
     document.getElementById('menu-screen').classList.add('hidden');
     document.getElementById('death-screen').classList.add('hidden');
     document.getElementById('victory-screen').classList.add('hidden');
     document.getElementById('hud').classList.remove('hidden');
     resetGame();
-    // Music and zone announcement happen after countdown
+
+    if (!hasSeenIntro) {
+        // First time: cinematic intro → countdown → play
+        state = 'intro';
+        introTimer = 0;
+        hasSeenIntro = true;
+    } else {
+        // Retry: quick countdown → play
+        state = 'countdown';
+        countdownTimer = 0;
+        countdownNumber = 3;
+        showCountdown(3);
+        // Snap camera to player position immediately
+        const camAngle = player.theta + 0.4;
+        camera.position.set(
+            9 * Math.cos(camAngle),
+            player.y + 2.5,
+            9 * Math.sin(camAngle)
+        );
+    }
 }
 
 document.getElementById('start-btn').addEventListener('click', startGame);
