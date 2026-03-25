@@ -16,7 +16,13 @@
             -webkit-user-select: none;
             user-select: none;
         }
-        #game-canvas { display: block; width: 100vw; height: 100vh; }
+        #game-canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+            -webkit-touch-callout: none;
+        }
 
         #hud {
             position: fixed;

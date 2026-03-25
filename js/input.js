@@ -1,4 +1,4 @@
-// Input handler for keyboard and touch
+// Input handler for keyboard and touch (iOS Safari compatible)
 export class InputManager {
     constructor() {
         this.keys = {};
@@ -14,17 +14,76 @@ export class InputManager {
         this._reversePressed = false;
         this._dashPressed = false;
 
-        // Touch queued actions — survive until consumed by update()
+        // Touch queued actions
         this._touchQueue = [];
 
         // Swipe tracking
         this._touchStartX = 0;
         this._touchStartY = 0;
         this._touchStartTime = 0;
-        this._touching = false;
 
         this._bindKeyboard();
-        this._bindTouch();
+        // Defer touch binding until canvas is ready
+        this._touchBound = false;
+    }
+
+    bindTouch() {
+        if (this._touchBound) return;
+        this._touchBound = true;
+
+        const canvas = document.getElementById('game-canvas');
+        if (!canvas) return;
+
+        // === TOUCH on canvas directly (iOS Safari compatible) ===
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const touch = e.touches[0];
+            this._touchStartX = touch.clientX;
+            this._touchStartY = touch.clientY;
+            this._touchStartTime = performance.now();
+
+            // Immediate jump
+            this._touchQueue.push('jump');
+        }, { passive: false, capture: true });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.changedTouches.length === 0) return;
+            const touch = e.changedTouches[0];
+            const dx = touch.clientX - this._touchStartX;
+            const dy = touch.clientY - this._touchStartY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist >= 50) {
+                if (Math.abs(dy) > Math.abs(dx)) {
+                    if (dy < -60) {
+                        this._touchQueue.push('highJump');
+                    } else if (dy > 60) {
+                        this._touchQueue.push('duck');
+                    }
+                } else {
+                    this._touchQueue.push('reverse');
+                }
+            }
+        }, { passive: false, capture: true });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+
+        // === CLICK fallback — iOS Safari sometimes uses click instead of touch ===
+        canvas.addEventListener('click', (e) => {
+            e.preventDefault();
+            this._touchQueue.push('jump');
+        });
+
+        // === Also capture touches on HUD (which overlays the canvas) ===
+        const hud = document.getElementById('hud');
+        if (hud) {
+            hud.style.pointerEvents = 'none'; // ensure touches pass through
+        }
     }
 
     _bindKeyboard() {
@@ -38,55 +97,6 @@ export class InputManager {
             if (e.code === 'KeyA' || e.code === 'KeyD') this._reversePressed = false;
             if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this._dashPressed = false;
         });
-    }
-
-    _bindTouch() {
-        // JUMP on touchstart — immediate response, no waiting for touchend
-        document.addEventListener('touchstart', (e) => {
-            // Don't hijack button taps
-            if (e.target.closest && e.target.closest('.screen-btn')) return;
-            if (e.target.tagName === 'BUTTON') return;
-
-            e.preventDefault();
-            const touch = e.touches[0];
-            this._touchStartX = touch.clientX;
-            this._touchStartY = touch.clientY;
-            this._touchStartTime = performance.now();
-            this._touching = true;
-
-            // Immediate jump on any tap
-            this._touchQueue.push('jump');
-        }, { passive: false });
-
-        // Swipe detection on touchend — for reverse, high jump, duck
-        document.addEventListener('touchend', (e) => {
-            if (!this._touching) return;
-            e.preventDefault();
-            this._touching = false;
-
-            if (e.changedTouches.length === 0) return;
-            const touch = e.changedTouches[0];
-            const dx = touch.clientX - this._touchStartX;
-            const dy = touch.clientY - this._touchStartY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            // Only process swipes (taps already handled in touchstart)
-            if (dist >= 50) {
-                if (Math.abs(dy) > Math.abs(dx)) {
-                    if (dy < -60) {
-                        this._touchQueue.push('highJump');
-                    } else if (dy > 60) {
-                        this._touchQueue.push('duck');
-                    }
-                } else {
-                    this._touchQueue.push('reverse');
-                }
-            }
-        }, { passive: false });
-
-        document.addEventListener('touchmove', (e) => {
-            if (this._touching) e.preventDefault();
-        }, { passive: false });
     }
 
     update() {
