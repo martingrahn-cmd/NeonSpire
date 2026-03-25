@@ -10,26 +10,36 @@ function generateZone1() {
     const collectibles = [];
     const baseY = 0;
 
-    // Starting platform - extra wide and safe
-    platforms.push({ type: 'solid', theta: 0, y: baseY + 0.5, width: 2.0, });
-    platforms.push({ type: 'solid', theta: 0.8, y: baseY + 1.5, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 1.8, y: baseY + 2.5, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 2.8, y: baseY + 3.5, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 3.8, y: baseY + 4.5, width: 1.0 });
-    platforms.push({ type: 'solid', theta: 4.8, y: baseY + 5.5, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 5.6, y: baseY + 6.5, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 0.3, y: baseY + 7.5, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 1.2, y: baseY + 8.5, width: 1.0 });
-    platforms.push({ type: 'solid', theta: 2.2, y: baseY + 9.5, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 3.2, y: baseY + 10.5, width: 0.8 });
-    platforms.push({ type: 'bouncy', theta: 4.2, y: baseY + 11.0, width: 0.7 });
-    platforms.push({ type: 'solid', theta: 4.2, y: baseY + 13.5, width: 1.0 });
-    platforms.push({ type: 'solid', theta: 5.2, y: baseY + 14.5, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 0.0, y: baseY + 15.5, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 1.0, y: baseY + 16.5, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 2.0, y: baseY + 17.5, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 3.0, y: baseY + 18.5, width: 1.0 });
-    platforms.push({ type: 'solid', theta: 4.0, y: baseY + 19.5, width: 0.8 });
+    // Platforms spiral with small theta increments (0.4-0.6 per step)
+    // and gradual height increase (0.8-1.2 per step) — reachable with a jump
+    // Note: theta values will be mirrored in generateTower() for CCW play
+
+    // Starting area — very wide, safe, teaches the player to jump
+    platforms.push({ type: 'solid', theta: 0, y: baseY + 0.5, width: 3.5 });     // huge start platform
+    platforms.push({ type: 'solid', theta: 0.5, y: baseY + 1.3, width: 1.2 });   // easy first jump
+    platforms.push({ type: 'solid', theta: 1.0, y: baseY + 2.0, width: 1.0 });
+    platforms.push({ type: 'solid', theta: 1.5, y: baseY + 2.8, width: 1.0 });
+    platforms.push({ type: 'solid', theta: 2.0, y: baseY + 3.5, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 2.5, y: baseY + 4.3, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 3.1, y: baseY + 5.0, width: 1.0 });
+    platforms.push({ type: 'solid', theta: 3.6, y: baseY + 5.8, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 4.1, y: baseY + 6.5, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 4.7, y: baseY + 7.3, width: 1.0 });
+    platforms.push({ type: 'solid', theta: 5.2, y: baseY + 8.0, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 5.7, y: baseY + 8.8, width: 0.9 });
+    platforms.push({ type: 'bouncy', theta: 0.0, y: baseY + 9.3, width: 0.8 });  // bouncy shortcut
+    platforms.push({ type: 'solid', theta: 0.3, y: baseY + 11.5, width: 1.0 });
+    platforms.push({ type: 'solid', theta: 0.8, y: baseY + 12.3, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 1.3, y: baseY + 13.0, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 1.8, y: baseY + 13.8, width: 1.0 });
+    platforms.push({ type: 'solid', theta: 2.4, y: baseY + 14.5, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 3.0, y: baseY + 15.3, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 3.5, y: baseY + 16.0, width: 1.0 });
+    platforms.push({ type: 'solid', theta: 4.0, y: baseY + 16.8, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 4.5, y: baseY + 17.5, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 5.0, y: baseY + 18.3, width: 1.0 });
+    platforms.push({ type: 'solid', theta: 5.5, y: baseY + 19.0, width: 0.9 });
+    platforms.push({ type: 'solid', theta: 6.0, y: baseY + 19.5, width: 1.0 });
 
     // Sentinels - basic patrol enemies
     enemies.push({ type: 'sentinel', theta: 2.8, y: baseY + 3.5, patrolWidth: 0.6 });

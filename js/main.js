@@ -407,8 +407,9 @@ function angleDist(a, b) {
 function updatePlayer(dt) {
     if (player.isDead) return;
 
-    // Speed increases with height
-    speedMultiplier = 1 + player.y * 0.005;
+    // Speed ramps up: slow start, faster with height
+    speedMultiplier = 0.5 + player.y * 0.02;
+    speedMultiplier = Math.min(speedMultiplier, 1.5);
 
     // Dash
     if (isDashing) {
