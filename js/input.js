@@ -14,10 +14,14 @@ export class InputManager {
         this._reversePressed = false;
         this._dashPressed = false;
 
+        // Touch queued actions — survive until consumed by update()
+        this._touchQueue = [];
+
         // Touch state
         this._touchStartX = 0;
         this._touchStartY = 0;
         this._touchStartTime = 0;
+        this._touching = false;
 
         this._bindKeyboard();
         this._bindTouch();
@@ -37,18 +41,24 @@ export class InputManager {
     }
 
     _bindTouch() {
-        const canvas = document.getElementById('game-canvas');
+        // Bind to document so touches work even over HUD elements
+        document.addEventListener('touchstart', (e) => {
+            // Don't hijack button taps on menu/death/victory screens
+            if (e.target.closest('.screen-btn')) return;
 
-        canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
             this._touchStartX = touch.clientX;
             this._touchStartY = touch.clientY;
             this._touchStartTime = performance.now();
+            this._touching = true;
         }, { passive: false });
 
-        canvas.addEventListener('touchend', (e) => {
+        document.addEventListener('touchend', (e) => {
+            if (!this._touching) return;
             e.preventDefault();
+            this._touching = false;
+
             if (e.changedTouches.length === 0) return;
             const touch = e.changedTouches[0];
             const dx = touch.clientX - this._touchStartX;
@@ -56,34 +66,25 @@ export class InputManager {
             const dt = performance.now() - this._touchStartTime;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist < 30 && dt < 300) {
-                // Tap - jump
-                const screenHalf = window.innerWidth / 2;
-                if (touch.clientX < screenHalf) {
-                    // Left tap = reverse
-                    this.actions.reverse = true;
-                } else {
-                    // Right tap = jump
-                    this.actions.jump = true;
-                }
-            } else if (dist > 30) {
+            if (dist < 40 && dt < 400) {
+                // Tap — anywhere on screen = jump (simplest mobile control)
+                this._touchQueue.push('jump');
+            } else if (dist >= 40) {
                 if (Math.abs(dy) > Math.abs(dx)) {
-                    if (dy < -40) {
-                        // Swipe up = high jump
-                        this.actions.highJump = true;
-                    } else if (dy > 40) {
-                        // Swipe down = duck
-                        this.actions.duck = true;
+                    if (dy < -50) {
+                        this._touchQueue.push('highJump');
+                    } else if (dy > 50) {
+                        this._touchQueue.push('duck');
                     }
                 } else {
-                    // Horizontal swipe = reverse
-                    this.actions.reverse = true;
+                    // Horizontal swipe = reverse direction
+                    this._touchQueue.push('reverse');
                 }
             }
         }, { passive: false });
 
-        canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
+        document.addEventListener('touchmove', (e) => {
+            if (this._touching) e.preventDefault();
         }, { passive: false });
     }
 
@@ -95,7 +96,13 @@ export class InputManager {
         this.actions.dash = false;
         this.actions.duck = false;
 
-        // Keyboard: jump
+        // Process touch queue FIRST — these are one-shot events
+        while (this._touchQueue.length > 0) {
+            const action = this._touchQueue.shift();
+            this.actions[action] = true;
+        }
+
+        // Keyboard: jump (only if touch didn't already set it)
         if (this.keys['Space'] && !this._jumpPressed) {
             this.actions.jump = true;
             this._jumpPressed = true;
@@ -114,7 +121,9 @@ export class InputManager {
         }
 
         // Keyboard: duck
-        this.actions.duck = this.keys['KeyS'] || false;
+        if (this.keys['KeyS']) {
+            this.actions.duck = true;
+        }
 
         // Keyboard: dash
         if ((this.keys['ShiftLeft'] || this.keys['ShiftRight']) && !this._dashPressed) {
