@@ -136,10 +136,16 @@
             pointer-events: none;
             z-index: 15;
             opacity: 0;
-            transition: opacity 0.5s;
+            transition: opacity 0.3s;
         }
         #zone-announcement.show {
             opacity: 1;
+            font-size: 72px;
+            animation: countPulse 0.3s ease-out;
+        }
+        @keyframes countPulse {
+            0% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
         }
     </style>
 </head>

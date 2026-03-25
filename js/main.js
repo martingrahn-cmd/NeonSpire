@@ -28,7 +28,7 @@ const PI2 = Math.PI * 2;
 const LIVES_MAX = 3;
 
 // ─── Game State ───
-let state = 'menu'; // menu, playing, dead, victory
+let state = 'menu'; // menu, intro, countdown, playing, dead, victory
 let score = 0;
 let lives = LIVES_MAX;
 let energy = ENERGY_MAX;
@@ -39,6 +39,9 @@ let dashCooldownTimer = 0;
 let isDashing = false;
 let coyoteTimer = 0;
 let speedMultiplier = 1;
+let introTimer = 0;
+let countdownTimer = 0;
+let countdownNumber = 3;
 
 // Player state (polar coords)
 const player = {
@@ -221,8 +224,15 @@ function buildTower() {
 
 function createPlatformMesh(p) {
     const angularWidth = p.width;
-    const segments = Math.max(4, Math.floor(angularWidth * 8));
-    const geo = new THREE.BoxGeometry(angularWidth * CYLINDER_RADIUS, PLATFORM_THICKNESS, PLATFORM_DEPTH);
+    const segments = Math.max(6, Math.floor(angularWidth * 10));
+    const outerR = CYLINDER_RADIUS + PLATFORM_DEPTH;
+    const innerR = CYLINDER_RADIUS + 0.02;
+
+    // Create a curved platform using CylinderGeometry segment
+    const geo = new THREE.CylinderGeometry(
+        outerR, outerR, PLATFORM_THICKNESS, segments, 1, true,
+        p.theta - angularWidth / 2, angularWidth
+    );
 
     let color;
     switch (p.type) {
@@ -239,9 +249,21 @@ function createPlatformMesh(p) {
         color,
         transparent: p.type === 'phasing',
         opacity: p.type === 'phasing' ? 0.6 : 1.0,
+        side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geo, mat);
-    positionOnCylinder(mesh, p.theta, p.y, CYLINDER_RADIUS + PLATFORM_DEPTH / 2);
+    mesh.position.y = p.y;
+
+    // Add a glowing edge on top
+    const edgeGeo = new THREE.CylinderGeometry(
+        outerR + 0.02, outerR + 0.02, 0.02, segments, 1, true,
+        p.theta - angularWidth / 2, angularWidth
+    );
+    const edgeMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+    const edge = new THREE.Mesh(edgeGeo, edgeMat);
+    edge.position.y = PLATFORM_THICKNESS / 2;
+    mesh.add(edge);
+
     return mesh;
 }
 
@@ -317,7 +339,7 @@ const trailPositions = [];
 const MAX_TRAIL = 60;
 
 function updateTrail() {
-    const r = CYLINDER_RADIUS + PLATFORM_DEPTH + PLAYER_SIZE / 2;
+    const r = CYLINDER_RADIUS + PLATFORM_DEPTH + PLAYER_SIZE * 0.5;
     const px = r * Math.cos(player.theta);
     const pz = r * Math.sin(player.theta);
 
@@ -564,12 +586,24 @@ function updatePlayer(dt) {
         victory();
     }
 
-    // Update player mesh position
-    const r = CYLINDER_RADIUS + PLATFORM_DEPTH + PLAYER_SIZE / 2;
+    // Update player mesh position - on the outer surface of the cylinder
+    const r = CYLINDER_RADIUS + PLATFORM_DEPTH + PLAYER_SIZE * 0.5;
     const scaleY = player.ducking ? 0.5 : 1.0;
     playerMesh.scale.y = scaleY;
-    positionOnCylinder(playerMesh, player.theta, player.y + PLAYER_SIZE * 0.75 * scaleY, r);
-    positionOnCylinder(playerGlow, player.theta, player.y + PLAYER_SIZE * 0.75, r);
+    const playerVisualY = player.y + PLAYER_SIZE * 0.75 * scaleY + PLATFORM_THICKNESS;
+    playerMesh.position.set(
+        r * Math.cos(player.theta),
+        playerVisualY,
+        r * Math.sin(player.theta)
+    );
+    // Face outward from cylinder
+    playerMesh.rotation.y = -player.theta + Math.PI / 2;
+
+    playerGlow.position.set(
+        r * Math.cos(player.theta),
+        player.y + PLAYER_SIZE * 0.75 + PLATFORM_THICKNESS,
+        r * Math.sin(player.theta)
+    );
 
     // Dash visual
     if (isDashing) {
@@ -642,7 +676,9 @@ function updatePlatforms(dt) {
                 break;
             case 'moving':
                 p.theta = p.originalTheta + Math.sin(performance.now() * 0.001 * (p.moveSpeed || 1)) * (p.moveRange || 0.5);
-                positionOnCylinder(platformMeshes[i], p.theta, p.y, CYLINDER_RADIUS + PLATFORM_DEPTH / 2);
+                // Rotate the mesh around Y axis to move it around the cylinder
+                const angleDelta = p.theta - p.originalTheta;
+                platformMeshes[i].rotation.y = angleDelta;
                 break;
             case 'phasing':
                 p.phaseTimer += dt * (p.phaseSpeed || 1.5);
@@ -691,18 +727,99 @@ function updateEnemies(dt) {
 }
 
 function updateCamera() {
-    const targetY = player.y + 3;
-    camera.position.y += (targetY - camera.position.y) * 0.05;
+    const targetY = player.y + 2;
+    camera.position.y += (targetY - camera.position.y) * 0.08;
 
-    // Slight orbit to follow player
-    const camAngle = player.theta + Math.PI; // opposite side
-    const camR = 10;
+    // Camera on the SAME side as the player, slightly above and behind
+    const camAngle = player.theta; // same side as player
+    const camR = 8;
+    const camHeight = player.y + 3;
     const targetX = camR * Math.cos(camAngle);
     const targetZ = camR * Math.sin(camAngle);
-    camera.position.x += (targetX - camera.position.x) * 0.03;
-    camera.position.z += (targetZ - camera.position.z) * 0.03;
+    camera.position.x += (targetX - camera.position.x) * 0.08;
+    camera.position.z += (targetZ - camera.position.z) * 0.08;
 
-    camera.lookAt(0, player.y + 1, 0);
+    // Look at a point slightly above the player on the cylinder
+    const lookR = CYLINDER_RADIUS * 0.3;
+    const lookX = lookR * Math.cos(player.theta);
+    const lookZ = lookR * Math.sin(player.theta);
+    camera.lookAt(lookX, player.y + 1.5, lookZ);
+}
+
+function updateIntroCamera(time) {
+    // Cinematic fly-around the tower
+    const t = introTimer;
+    const duration = 4.0; // seconds
+    const progress = Math.min(t / duration, 1);
+
+    // Spiral up and around the tower
+    const angle = progress * Math.PI * 2.5;
+    const height = 2 + progress * 25;
+    const radius = 14 - progress * 5; // zoom in
+
+    camera.position.x = radius * Math.cos(angle);
+    camera.position.z = radius * Math.sin(angle);
+    camera.position.y = height;
+
+    // Look at tower center, slightly ahead
+    camera.lookAt(0, height * 0.7, 0);
+
+    if (progress >= 1) {
+        // Transition to countdown
+        state = 'countdown';
+        countdownTimer = 0;
+        countdownNumber = 3;
+        showCountdown(3);
+    }
+}
+
+function updateCountdown(dt) {
+    countdownTimer += dt;
+
+    // Camera settles into gameplay position
+    const r = 8;
+    const targetX = r * Math.cos(player.theta);
+    const targetZ = r * Math.sin(player.theta);
+    camera.position.x += (targetX - camera.position.x) * 0.1;
+    camera.position.z += (targetZ - camera.position.z) * 0.1;
+    camera.position.y += (player.y + 3 - camera.position.y) * 0.1;
+    const lookR = CYLINDER_RADIUS * 0.3;
+    camera.lookAt(lookR * Math.cos(player.theta), player.y + 1.5, lookR * Math.sin(player.theta));
+
+    if (countdownTimer >= 1.0 && countdownNumber === 3) {
+        countdownNumber = 2;
+        showCountdown(2);
+    } else if (countdownTimer >= 2.0 && countdownNumber === 2) {
+        countdownNumber = 1;
+        showCountdown(1);
+    } else if (countdownTimer >= 3.0 && countdownNumber === 1) {
+        showCountdown(0); // "GO!"
+    } else if (countdownTimer >= 3.5) {
+        state = 'playing';
+        hideCountdown();
+        audio.startMusic();
+        announceZone(0);
+    }
+}
+
+function showCountdown(n) {
+    const el = document.getElementById('zone-announcement');
+    el.textContent = n > 0 ? n.toString() : 'CLIMB!';
+    el.classList.add('show');
+    if (n === 0) {
+        el.style.color = '#0f0';
+        el.style.textShadow = '0 0 20px #0f0, 0 0 40px #0f0';
+    } else {
+        el.style.color = '';
+        el.style.textShadow = '';
+    }
+}
+
+function hideCountdown() {
+    const el = document.getElementById('zone-announcement');
+    el.classList.remove('show');
+    el.style.color = '';
+    el.style.textShadow = '';
 }
 
 // ─── HUD ───
@@ -734,7 +851,12 @@ function gameLoop(time) {
     const dt = Math.min((time - lastTime) / 1000, 0.05); // cap dt
     lastTime = time;
 
-    if (state === 'playing') {
+    if (state === 'intro') {
+        introTimer += dt;
+        updateIntroCamera(time);
+    } else if (state === 'countdown') {
+        updateCountdown(dt);
+    } else if (state === 'playing') {
         updatePlayer(dt);
         updatePlatforms(dt);
         updateEnemies(dt);
@@ -752,6 +874,13 @@ function gameLoop(time) {
         // Animate tower wireframe glow
         const pulse = 0.2 + Math.sin(time * 0.001) * 0.1;
         towerWireframe.material.opacity = pulse;
+    } else if (state === 'menu') {
+        // Slow rotate camera around tower for menu background
+        const menuAngle = time * 0.0003;
+        camera.position.x = 12 * Math.cos(menuAngle);
+        camera.position.z = 12 * Math.sin(menuAngle);
+        camera.position.y = 8 + Math.sin(time * 0.0005) * 2;
+        camera.lookAt(0, 6, 0);
     }
 
     // Grid parallax
@@ -765,14 +894,14 @@ function gameLoop(time) {
 // ─── UI Events ───
 function startGame() {
     audio.init();
-    state = 'playing';
+    state = 'intro';
+    introTimer = 0;
     document.getElementById('menu-screen').classList.add('hidden');
     document.getElementById('death-screen').classList.add('hidden');
     document.getElementById('victory-screen').classList.add('hidden');
     document.getElementById('hud').classList.remove('hidden');
     resetGame();
-    audio.startMusic();
-    announceZone(0);
+    // Music and zone announcement happen after countdown
 }
 
 document.getElementById('start-btn').addEventListener('click', startGame);
