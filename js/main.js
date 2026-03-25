@@ -514,52 +514,54 @@ function updatePlayer(dt) {
 
     // Platform collision
     player.grounded = false;
-    for (let i = 0; i < platformStates.length; i++) {
-        const p = platformStates[i];
-        if (p.destroyed || !p.visible) continue;
+    if (player.vy <= 0) { // only check collision when falling
+        for (let i = 0; i < platformStates.length; i++) {
+            const p = platformStates[i];
+            if (p.destroyed || !p.visible) continue;
 
-        const angDist = angleDist(player.theta, p.theta);
-        const halfWidth = p.width / 2;
+            const angDist = angleDist(player.theta, p.theta);
+            const halfWidth = p.width / 2;
 
-        if (angDist < halfWidth) {
-            const platTop = p.y + PLATFORM_THICKNESS / 2;
-            const platBot = p.y - PLATFORM_THICKNESS / 2;
+            if (angDist < halfWidth) {
+                const platTop = p.y + PLATFORM_THICKNESS / 2;
+                const platBot = p.y - PLATFORM_THICKNESS / 2;
 
-            // Landing on top
-            if (player.vy <= 0 && player.y <= platTop + 0.5 && player.y >= platBot - 0.2) {
-                player.y = platTop + 0.05; // sit clearly on top
-                player.grounded = true;
+                // Landing on top — only when falling through platform level
+                if (player.y <= platTop + 0.3 && player.y >= platBot - 0.1) {
+                    player.y = platTop + 0.05;
+                    player.grounded = true;
 
-                // Platform-specific behavior
-                switch (p.type) {
-                    case 'bouncy':
-                        player.vy = BOUNCE_VELOCITY;
-                        player.grounded = false;
-                        audio.playJump();
-                        break;
-                    case 'crumbling':
-                        if (p.crumbleTimer < 0) {
-                            p.crumbleTimer = 0.5;
-                            audio.playCrumble();
-                        }
-                        break;
-                    case 'conveyor':
-                        player.theta += (p.conveyorSpeed || 1.0) * dt;
-                        player.theta = wrapAngle(player.theta);
-                        break;
-                }
-
-                if (player.vy <= 0 && p.type !== 'bouncy') {
-                    player.vy = 0;
-                    if (!p._landed) {
-                        audio.playLand();
-                        p._landed = true;
+                    // Platform-specific behavior
+                    switch (p.type) {
+                        case 'bouncy':
+                            player.vy = BOUNCE_VELOCITY;
+                            player.grounded = false;
+                            audio.playJump();
+                            break;
+                        case 'crumbling':
+                            if (p.crumbleTimer < 0) {
+                                p.crumbleTimer = 0.5;
+                                audio.playCrumble();
+                            }
+                            break;
+                        case 'conveyor':
+                            player.theta += (p.conveyorSpeed || 1.0) * dt;
+                            player.theta = wrapAngle(player.theta);
+                            break;
                     }
+
+                    if (p.type !== 'bouncy') {
+                        player.vy = 0;
+                        if (!p._landed) {
+                            audio.playLand();
+                            p._landed = true;
+                        }
+                    }
+                    break;
                 }
-                break;
+            } else {
+                if (p._landed) p._landed = false;
             }
-        } else {
-            if (p._landed) p._landed = false;
         }
     }
 

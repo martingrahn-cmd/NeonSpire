@@ -24,7 +24,7 @@ function generateZone1() {
     platforms.push({ type: 'solid', theta: 5.0, y: baseY + 7.3, width: 0.8 });
     platforms.push({ type: 'solid', theta: 5.8, y: baseY + 8.5, width: 0.9 });
     platforms.push({ type: 'bouncy', theta: 0.4, y: baseY + 9.5, width: 0.7 });   // bouncy boost
-    platforms.push({ type: 'solid', theta: 0.4, y: baseY + 12.0, width: 1.0 });
+    platforms.push({ type: 'solid', theta: 1.0, y: baseY + 12.0, width: 1.0 });  // offset from bouncy
     platforms.push({ type: 'solid', theta: 1.3, y: baseY + 13.2, width: 0.8 });
     platforms.push({ type: 'solid', theta: 2.2, y: baseY + 14.5, width: 0.9 });
     platforms.push({ type: 'solid', theta: 3.1, y: baseY + 15.7, width: 0.8 });
