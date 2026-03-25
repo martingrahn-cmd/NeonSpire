@@ -361,7 +361,7 @@ function updateTrail() {
 // ─── Game Logic ───
 function resetGame() {
     player.theta = 0;
-    player.y = 0.5 + PLATFORM_THICKNESS / 2; // on top of first platform (y=0.5)
+    player.y = 0.5 + PLATFORM_THICKNESS / 2 + 0.05; // on top of first platform (y=0.5)
     player.vy = 0;
     player.direction = -1; // CCW = left-to-right visually
     player.grounded = true;
@@ -487,8 +487,8 @@ function updatePlayer(dt) {
             const platBot = p.y - PLATFORM_THICKNESS / 2;
 
             // Landing on top
-            if (player.vy <= 0 && player.y <= platTop + 0.4 && player.y >= platBot - 0.1) {
-                player.y = platTop;
+            if (player.vy <= 0 && player.y <= platTop + 0.5 && player.y >= platBot - 0.2) {
+                player.y = platTop + 0.05; // sit clearly on top
                 player.grounded = true;
 
                 // Platform-specific behavior
