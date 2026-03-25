@@ -980,4 +980,5 @@ window.addEventListener('resize', () => {
 buildScene();
 buildTower();
 buildPlayer();
+input.bindTouch(); // bind touch after canvas is in DOM
 requestAnimationFrame(gameLoop);
