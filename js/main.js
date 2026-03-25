@@ -8,8 +8,8 @@ import { generateTower, ZONES, TOWER_HEIGHT } from './levels.js';
 
 // ─── Constants ───
 const CYLINDER_RADIUS = 3;
-const PLATFORM_THICKNESS = 0.15;
-const PLATFORM_DEPTH = 0.6;
+const PLATFORM_THICKNESS = 0.2;
+const PLATFORM_DEPTH = 0.8;
 const PLAYER_SIZE = 0.25;
 const GRAVITY = -18;
 const JUMP_VELOCITY = 8;
@@ -224,19 +224,9 @@ function buildTower() {
 }
 
 function createPlatformMesh(p) {
-    const angularWidth = p.width;
-    const segments = Math.max(6, Math.floor(angularWidth * 10));
-    const outerR = CYLINDER_RADIUS + PLATFORM_DEPTH;
-    const innerR = CYLINDER_RADIUS + 0.02;
-
-    // Wrap thetaStart to [0, 2π] for CylinderGeometry
-    const thetaStart = ((p.theta - angularWidth / 2) % PI2 + PI2) % PI2;
-
-    // Create a curved platform using CylinderGeometry segment
-    const geo = new THREE.CylinderGeometry(
-        outerR, outerR, PLATFORM_THICKNESS, segments, 1, true,
-        thetaStart, angularWidth
-    );
+    // Solid box platforms that protrude from the cylinder — clearly visible
+    const arcLength = p.width * CYLINDER_RADIUS; // width in world units
+    const geo = new THREE.BoxGeometry(arcLength, PLATFORM_THICKNESS, PLATFORM_DEPTH);
 
     let color;
     switch (p.type) {
@@ -253,22 +243,32 @@ function createPlatformMesh(p) {
         color,
         transparent: p.type === 'phasing',
         opacity: p.type === 'phasing' ? 0.6 : 1.0,
-        side: THREE.DoubleSide,
     });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = p.y;
 
-    // Add a glowing edge on top
-    const edgeGeo = new THREE.CylinderGeometry(
-        outerR + 0.02, outerR + 0.02, 0.02, segments, 1, true,
-        thetaStart, angularWidth
-    );
-    const edgeMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+    const group = new THREE.Group();
+
+    // Main platform box
+    const mesh = new THREE.Mesh(geo, mat);
+    group.add(mesh);
+
+    // Glowing top edge
+    const edgeGeo = new THREE.BoxGeometry(arcLength + 0.05, 0.03, PLATFORM_DEPTH + 0.05);
+    const edgeMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 });
     const edge = new THREE.Mesh(edgeGeo, edgeMat);
     edge.position.y = PLATFORM_THICKNESS / 2;
-    mesh.add(edge);
+    group.add(edge);
 
-    return mesh;
+    // Position on cylinder surface, protruding outward
+    const r = CYLINDER_RADIUS + PLATFORM_DEPTH / 2;
+    group.position.set(
+        r * Math.cos(p.theta),
+        p.y,
+        r * Math.sin(p.theta)
+    );
+    // Rotate so the depth axis points outward from cylinder center
+    group.rotation.y = -p.theta + Math.PI / 2;
+
+    return group;
 }
 
 function createEnemyMesh(e) {
@@ -682,21 +682,27 @@ function updatePlatforms(dt) {
                 break;
             case 'moving':
                 p.theta = p.originalTheta + Math.sin(performance.now() * 0.001 * (p.moveSpeed || 1)) * (p.moveRange || 0.5);
-                // Rotate the mesh around Y axis to move it around the cylinder
-                const angleDelta = p.theta - p.originalTheta;
-                platformMeshes[i].rotation.y = angleDelta;
+                // Reposition the group on the cylinder
+                const mvR = CYLINDER_RADIUS + PLATFORM_DEPTH / 2;
+                platformMeshes[i].position.set(
+                    mvR * Math.cos(p.theta),
+                    p.y,
+                    mvR * Math.sin(p.theta)
+                );
+                platformMeshes[i].rotation.y = -p.theta + Math.PI / 2;
                 break;
             case 'phasing':
                 p.phaseTimer += dt * (p.phaseSpeed || 1.5);
                 const alpha = (Math.sin(p.phaseTimer) + 1) / 2;
                 p.visible = alpha > 0.3;
                 platformMeshes[i].visible = p.visible;
-                platformMeshes[i].material.opacity = alpha;
+                // Access material on child mesh
+                platformMeshes[i].children[0].material.opacity = alpha;
                 break;
             case 'conveyor':
                 // Animate arrow pattern (color pulse)
                 const pulse = (Math.sin(performance.now() * 0.005) + 1) / 2;
-                platformMeshes[i].material.color.setHSL(0.08, 1, 0.3 + pulse * 0.3);
+                platformMeshes[i].children[0].material.color.setHSL(0.08, 1, 0.3 + pulse * 0.3);
                 break;
         }
     }
@@ -733,26 +739,27 @@ function updateEnemies(dt) {
 }
 
 function updateCamera() {
-    const targetY = player.y + 2.5;
+    // Camera higher up to see platforms above
+    const targetY = player.y + 4;
     camera.position.y += (targetY - camera.position.y) * 0.08;
 
-    // Camera offset: behind and slightly to the side of the player
-    // so the player is visible on the left side of screen (running right)
-    const camOffset = 0.4; // radians behind the player's direction
+    // Camera behind player (in movement direction), offset to the side
+    // Player runs CCW (theta decreasing), so camera trails at higher theta
+    const camOffset = 0.5; // radians behind
     const camAngle = player.theta + camOffset;
-    const camR = 9;
+    const camR = 11; // further back to see more of the tower
     const targetX = camR * Math.cos(camAngle);
     const targetZ = camR * Math.sin(camAngle);
     camera.position.x += (targetX - camera.position.x) * 0.08;
     camera.position.z += (targetZ - camera.position.z) * 0.08;
 
-    // Look slightly ahead of the player (in movement direction)
-    const lookAhead = -0.3; // radians ahead in CCW direction
+    // Look ahead of the player and slightly up to show upcoming platforms
+    const lookAhead = -0.3;
     const lookAngle = player.theta + lookAhead;
-    const lookR = CYLINDER_RADIUS * 0.5;
+    const lookR = CYLINDER_RADIUS * 0.3;
     const lookX = lookR * Math.cos(lookAngle);
     const lookZ = lookR * Math.sin(lookAngle);
-    camera.lookAt(lookX, player.y + 1, lookZ);
+    camera.lookAt(lookX, player.y + 2, lookZ);
 }
 
 function updateIntroCamera(time) {
@@ -766,10 +773,10 @@ function updateIntroCamera(time) {
     // Start high, spiral down to player start
     const angle = eased * Math.PI * 2;
     const startHeight = TOWER_HEIGHT + 5;
-    const endHeight = player.y + 3;
+    const endHeight = player.y + 4;
     const height = startHeight + (endHeight - startHeight) * eased;
-    const startRadius = 14;
-    const endRadius = 8;
+    const startRadius = 16;
+    const endRadius = 11;
     const radius = startRadius + (endRadius - startRadius) * eased;
 
     camera.position.x = radius * Math.cos(angle);
@@ -792,16 +799,16 @@ function updateCountdown(dt) {
     countdownTimer += dt;
 
     // Camera settles into gameplay position (matching updateCamera offset)
-    const camAngle = player.theta + 0.4;
-    const r = 9;
+    const camAngle = player.theta + 0.5;
+    const r = 11;
     const targetX = r * Math.cos(camAngle);
     const targetZ = r * Math.sin(camAngle);
     camera.position.x += (targetX - camera.position.x) * 0.1;
     camera.position.z += (targetZ - camera.position.z) * 0.1;
-    camera.position.y += (player.y + 2.5 - camera.position.y) * 0.1;
+    camera.position.y += (player.y + 4 - camera.position.y) * 0.1;
     const lookAngle = player.theta - 0.3;
-    const lookR = CYLINDER_RADIUS * 0.5;
-    camera.lookAt(lookR * Math.cos(lookAngle), player.y + 1, lookR * Math.sin(lookAngle));
+    const lookR = CYLINDER_RADIUS * 0.3;
+    camera.lookAt(lookR * Math.cos(lookAngle), player.y + 2, lookR * Math.sin(lookAngle));
 
     if (countdownTimer >= 1.0 && countdownNumber === 3) {
         countdownNumber = 2;
@@ -930,11 +937,11 @@ function startGame() {
         countdownNumber = 3;
         showCountdown(3);
         // Snap camera to player position immediately
-        const camAngle = player.theta + 0.4;
+        const camAngle = player.theta + 0.5;
         camera.position.set(
-            9 * Math.cos(camAngle),
-            player.y + 2.5,
-            9 * Math.sin(camAngle)
+            11 * Math.cos(camAngle),
+            player.y + 4,
+            11 * Math.sin(camAngle)
         );
     }
 }
