@@ -17,7 +17,7 @@ export class InputManager {
         // Touch queued actions — survive until consumed by update()
         this._touchQueue = [];
 
-        // Touch state
+        // Swipe tracking
         this._touchStartX = 0;
         this._touchStartY = 0;
         this._touchStartTime = 0;
@@ -41,10 +41,11 @@ export class InputManager {
     }
 
     _bindTouch() {
-        // Bind to document so touches work even over HUD elements
+        // JUMP on touchstart — immediate response, no waiting for touchend
         document.addEventListener('touchstart', (e) => {
-            // Don't hijack button taps on menu/death/victory screens
-            if (e.target.closest('.screen-btn')) return;
+            // Don't hijack button taps
+            if (e.target.closest && e.target.closest('.screen-btn')) return;
+            if (e.target.tagName === 'BUTTON') return;
 
             e.preventDefault();
             const touch = e.touches[0];
@@ -52,8 +53,12 @@ export class InputManager {
             this._touchStartY = touch.clientY;
             this._touchStartTime = performance.now();
             this._touching = true;
+
+            // Immediate jump on any tap
+            this._touchQueue.push('jump');
         }, { passive: false });
 
+        // Swipe detection on touchend — for reverse, high jump, duck
         document.addEventListener('touchend', (e) => {
             if (!this._touching) return;
             e.preventDefault();
@@ -63,21 +68,17 @@ export class InputManager {
             const touch = e.changedTouches[0];
             const dx = touch.clientX - this._touchStartX;
             const dy = touch.clientY - this._touchStartY;
-            const dt = performance.now() - this._touchStartTime;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist < 40 && dt < 400) {
-                // Tap — anywhere on screen = jump (simplest mobile control)
-                this._touchQueue.push('jump');
-            } else if (dist >= 40) {
+            // Only process swipes (taps already handled in touchstart)
+            if (dist >= 50) {
                 if (Math.abs(dy) > Math.abs(dx)) {
-                    if (dy < -50) {
+                    if (dy < -60) {
                         this._touchQueue.push('highJump');
-                    } else if (dy > 50) {
+                    } else if (dy > 60) {
                         this._touchQueue.push('duck');
                     }
                 } else {
-                    // Horizontal swipe = reverse direction
                     this._touchQueue.push('reverse');
                 }
             }
@@ -96,13 +97,13 @@ export class InputManager {
         this.actions.dash = false;
         this.actions.duck = false;
 
-        // Process touch queue FIRST — these are one-shot events
+        // Process touch queue FIRST
         while (this._touchQueue.length > 0) {
             const action = this._touchQueue.shift();
             this.actions[action] = true;
         }
 
-        // Keyboard: jump (only if touch didn't already set it)
+        // Keyboard: jump
         if (this.keys['Space'] && !this._jumpPressed) {
             this.actions.jump = true;
             this._jumpPressed = true;
