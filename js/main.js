@@ -229,10 +229,13 @@ function createPlatformMesh(p) {
     const outerR = CYLINDER_RADIUS + PLATFORM_DEPTH;
     const innerR = CYLINDER_RADIUS + 0.02;
 
+    // Wrap thetaStart to [0, 2π] for CylinderGeometry
+    const thetaStart = ((p.theta - angularWidth / 2) % PI2 + PI2) % PI2;
+
     // Create a curved platform using CylinderGeometry segment
     const geo = new THREE.CylinderGeometry(
         outerR, outerR, PLATFORM_THICKNESS, segments, 1, true,
-        p.theta - angularWidth / 2, angularWidth
+        thetaStart, angularWidth
     );
 
     let color;
@@ -258,7 +261,7 @@ function createPlatformMesh(p) {
     // Add a glowing edge on top
     const edgeGeo = new THREE.CylinderGeometry(
         outerR + 0.02, outerR + 0.02, 0.02, segments, 1, true,
-        p.theta - angularWidth / 2, angularWidth
+        thetaStart, angularWidth
     );
     const edgeMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
     const edge = new THREE.Mesh(edgeGeo, edgeMat);

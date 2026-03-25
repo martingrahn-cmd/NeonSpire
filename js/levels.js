@@ -10,8 +10,8 @@ function generateZone1() {
     const collectibles = [];
     const baseY = 0;
 
-    // Starting platform - wide and safe
-    platforms.push({ type: 'solid', theta: 0, y: baseY + 0.5, width: 1.2, });
+    // Starting platform - extra wide and safe
+    platforms.push({ type: 'solid', theta: 0, y: baseY + 0.5, width: 2.0, });
     platforms.push({ type: 'solid', theta: 0.8, y: baseY + 1.5, width: 0.8 });
     platforms.push({ type: 'solid', theta: 1.8, y: baseY + 2.5, width: 0.9 });
     platforms.push({ type: 'solid', theta: 2.8, y: baseY + 3.5, width: 0.8 });
