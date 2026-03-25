@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Neon Spire</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'Courier New', monospace;
+            color: #0ff;
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        #game-canvas { display: block; width: 100vw; height: 100vh; }
+
+        #hud {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #hud .score {
+            font-size: 24px;
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+        }
+        #hud .zone-info {
+            font-size: 14px;
+            color: #f0f;
+            text-shadow: 0 0 10px #f0f;
+        }
+        #hud .lives {
+            font-size: 20px;
+            text-shadow: 0 0 10px #0ff;
+        }
+        #hud .height-bar {
+            position: absolute;
+            right: 10px;
+            top: 60px;
+            width: 6px;
+            height: calc(100vh - 120px);
+            background: rgba(0,255,255,0.1);
+            border-radius: 3px;
+        }
+        #hud .height-progress {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: #0ff;
+            border-radius: 3px;
+            box-shadow: 0 0 8px #0ff;
+            transition: height 0.3s;
+        }
+        #hud .energy-bar {
+            width: 100px;
+            height: 6px;
+            background: rgba(255,0,255,0.2);
+            border-radius: 3px;
+            margin-top: 5px;
+        }
+        #hud .energy-fill {
+            height: 100%;
+            background: #f0f;
+            border-radius: 3px;
+            box-shadow: 0 0 6px #f0f;
+            transition: width 0.2s;
+        }
+
+        #menu-screen, #death-screen, #victory-screen {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.85);
+            z-index: 20;
+        }
+        .screen-title {
+            font-size: 48px;
+            text-shadow: 0 0 20px #0ff, 0 0 40px #0ff, 0 0 80px #f0f;
+            margin-bottom: 10px;
+        }
+        .screen-subtitle {
+            font-size: 16px;
+            color: #f0f;
+            text-shadow: 0 0 10px #f0f;
+            margin-bottom: 40px;
+        }
+        .screen-score {
+            font-size: 28px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 15px #0ff;
+        }
+        .screen-btn {
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+            color: #0ff;
+            background: transparent;
+            border: 2px solid #0ff;
+            padding: 12px 40px;
+            cursor: pointer;
+            text-shadow: 0 0 10px #0ff;
+            box-shadow: 0 0 15px rgba(0,255,255,0.3), inset 0 0 15px rgba(0,255,255,0.1);
+            transition: all 0.2s;
+            pointer-events: all;
+        }
+        .screen-btn:hover {
+            background: rgba(0,255,255,0.15);
+            box-shadow: 0 0 25px rgba(0,255,255,0.5), inset 0 0 25px rgba(0,255,255,0.2);
+        }
+        .controls-hint {
+            margin-top: 30px;
+            font-size: 12px;
+            color: rgba(0,255,255,0.5);
+            text-align: center;
+            line-height: 1.8;
+        }
+        .hidden { display: none !important; }
+
+        #zone-announcement {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            text-shadow: 0 0 20px #0ff, 0 0 40px #f0f;
+            pointer-events: none;
+            z-index: 15;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        #zone-announcement.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+
+    <div id="hud" class="hidden">
+        <div>
+            <div class="score">SCORE: <span id="score-value">0</span></div>
+            <div class="zone-info" id="zone-info">ZONE 1 — FOUNDATION</div>
+            <div class="energy-bar"><div class="energy-fill" id="energy-fill" style="width:100%"></div></div>
+        </div>
+        <div class="lives" id="lives-display">♦ ♦ ♦</div>
+        <div class="height-bar">
+            <div class="height-progress" id="height-progress" style="height:0%"></div>
+        </div>
+    </div>
+
+    <div id="zone-announcement"></div>
+
+    <div id="menu-screen">
+        <div class="screen-title">NEON SPIRE</div>
+        <div class="screen-subtitle">A cylindrical tower-climbing autorunner</div>
+        <button class="screen-btn" id="start-btn">START CLIMB</button>
+        <div class="controls-hint">
+            SPACE / TAP — Jump<br>
+            A / D — Reverse Direction<br>
+            W — High Jump (costs energy)<br>
+            S — Duck<br>
+            SHIFT — Dash (unlocks Zone 3)
+        </div>
+    </div>
+
+    <div id="death-screen" class="hidden">
+        <div class="screen-title" style="color:#f44">SIGNAL LOST</div>
+        <div class="screen-score">SCORE: <span id="death-score">0</span></div>
+        <div class="screen-subtitle">Height reached: <span id="death-height">0</span>m</div>
+        <button class="screen-btn" id="retry-btn">RETRY</button>
+    </div>
+
+    <div id="victory-screen" class="hidden">
+        <div class="screen-title" style="color:#0f0">TOWER COMPLETE</div>
+        <div class="screen-score">FINAL SCORE: <span id="victory-score">0</span></div>
+        <button class="screen-btn" id="victory-btn">PLAY AGAIN</button>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
