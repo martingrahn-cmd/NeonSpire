@@ -360,7 +360,7 @@ function updateTrail() {
 // ─── Game Logic ───
 function resetGame() {
     player.theta = 0;
-    player.y = 1.5;
+    player.y = 0.5 + PLATFORM_THICKNESS / 2; // on top of first platform (y=0.5)
     player.vy = 0;
     player.direction = 1;
     player.grounded = false;
@@ -482,12 +482,12 @@ function updatePlayer(dt) {
         const halfWidth = p.width / 2;
 
         if (angDist < halfWidth) {
-            const platTop = p.y + PLATFORM_THICKNESS;
-            const platBot = p.y;
+            const platTop = p.y + PLATFORM_THICKNESS / 2;
+            const platBot = p.y - PLATFORM_THICKNESS / 2;
 
             // Landing on top
-            if (player.vy <= 0 && player.y >= platBot && player.y <= platTop + 0.5 && player.y - player.vy * dt >= platBot) {
-                player.y = platTop + 0.01;
+            if (player.vy <= 0 && player.y <= platTop + 0.4 && player.y >= platBot - 0.1) {
+                player.y = platTop;
                 player.grounded = true;
 
                 // Platform-specific behavior
@@ -590,7 +590,9 @@ function updatePlayer(dt) {
     const r = CYLINDER_RADIUS + PLATFORM_DEPTH + PLAYER_SIZE * 0.5;
     const scaleY = player.ducking ? 0.5 : 1.0;
     playerMesh.scale.y = scaleY;
-    const playerVisualY = player.y + PLAYER_SIZE * 0.75 * scaleY + PLATFORM_THICKNESS;
+    // Player feet at player.y, center offset by half height
+    const halfH = (PLAYER_SIZE * 1.5 * scaleY) / 2;
+    const playerVisualY = player.y + halfH;
     playerMesh.position.set(
         r * Math.cos(player.theta),
         playerVisualY,
@@ -601,7 +603,7 @@ function updatePlayer(dt) {
 
     playerGlow.position.set(
         r * Math.cos(player.theta),
-        player.y + PLAYER_SIZE * 0.75 + PLATFORM_THICKNESS,
+        playerVisualY,
         r * Math.sin(player.theta)
     );
 
@@ -747,22 +749,28 @@ function updateCamera() {
 }
 
 function updateIntroCamera(time) {
-    // Cinematic fly-around the tower
+    // Cinematic fly-around: start at the TOP, spiral DOWN to start position
     const t = introTimer;
     const duration = 4.0; // seconds
     const progress = Math.min(t / duration, 1);
+    // Ease-out for smooth deceleration
+    const eased = 1 - Math.pow(1 - progress, 2);
 
-    // Spiral up and around the tower
-    const angle = progress * Math.PI * 2.5;
-    const height = 2 + progress * 25;
-    const radius = 14 - progress * 5; // zoom in
+    // Start high, spiral down to player start
+    const angle = eased * Math.PI * 2;
+    const startHeight = TOWER_HEIGHT + 5;
+    const endHeight = player.y + 3;
+    const height = startHeight + (endHeight - startHeight) * eased;
+    const startRadius = 14;
+    const endRadius = 8;
+    const radius = startRadius + (endRadius - startRadius) * eased;
 
     camera.position.x = radius * Math.cos(angle);
     camera.position.z = radius * Math.sin(angle);
     camera.position.y = height;
 
-    // Look at tower center, slightly ahead
-    camera.lookAt(0, height * 0.7, 0);
+    // Look at tower at current height level
+    camera.lookAt(0, height * 0.6, 0);
 
     if (progress >= 1) {
         // Transition to countdown
@@ -793,8 +801,9 @@ function updateCountdown(dt) {
         countdownNumber = 1;
         showCountdown(1);
     } else if (countdownTimer >= 3.0 && countdownNumber === 1) {
-        showCountdown(0); // "GO!"
-    } else if (countdownTimer >= 3.5) {
+        countdownNumber = 0;
+        showCountdown(0); // "CLIMB!"
+    } else if (countdownTimer >= 3.5 && countdownNumber === 0) {
         state = 'playing';
         hideCountdown();
         audio.startMusic();
