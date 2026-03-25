@@ -166,5 +166,18 @@ export function generateTower() {
         allCollectibles.push(...data.collectibles);
     }
 
+    // Mirror all theta values for CCW player direction (left-to-right visually)
+    // Platforms spiral in decreasing theta so CCW runner encounters them naturally
+    for (const p of allPlatforms) {
+        p.theta = (PI2 - p.theta) % PI2;
+    }
+    for (const e of allEnemies) {
+        e.theta = (PI2 - e.theta) % PI2;
+        if (e.orbitSpeed) e.orbitSpeed = -e.orbitSpeed;
+    }
+    for (const c of allCollectibles) {
+        c.theta = (PI2 - c.theta) % PI2;
+    }
+
     return { platforms: allPlatforms, enemies: allEnemies, collectibles: allCollectibles };
 }
