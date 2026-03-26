@@ -5,153 +5,343 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Neon Spire</title>
     <style>
+        :root {
+            --bg-top: #020712;
+            --bg-mid: #041427;
+            --bg-low: #071627;
+            --hud-glass: rgba(5, 18, 34, 0.62);
+            --hud-border: rgba(111, 236, 255, 0.45);
+            --accent-cyan: #5ff3ff;
+            --accent-rose: #ff6796;
+            --accent-amber: #ffb25d;
+            --text-main: #d6f7ff;
+            --text-soft: rgba(214, 247, 255, 0.72);
+            --panel-shadow: 0 0 14px rgba(26, 196, 255, 0.12), 0 14px 28px rgba(0, 0, 0, 0.4);
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+
         body {
             overflow: hidden;
-            background: #000;
-            font-family: 'Courier New', monospace;
-            color: #0ff;
+            background:
+                radial-gradient(circle at 20% 8%, rgba(95, 243, 255, 0.14), transparent 38%),
+                radial-gradient(circle at 85% 88%, rgba(255, 178, 93, 0.14), transparent 35%),
+                linear-gradient(165deg, var(--bg-top) 0%, var(--bg-mid) 55%, var(--bg-low) 100%);
+            font-family: "Rajdhani", "Trebuchet MS", "Segoe UI", sans-serif;
+            color: var(--text-main);
             touch-action: none;
             -webkit-touch-callout: none;
             -webkit-user-select: none;
             user-select: none;
         }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background: repeating-linear-gradient(
+                180deg,
+                rgba(123, 216, 255, 0.05) 0 1px,
+                transparent 1px 5px
+            );
+            mix-blend-mode: screen;
+            opacity: 0.18;
+            pointer-events: none;
+            z-index: 1;
+        }
+
         #game-canvas {
+            position: fixed;
+            inset: 0;
             display: block;
             width: 100vw;
             height: 100vh;
             touch-action: none;
             -webkit-touch-callout: none;
+            z-index: 0;
         }
 
         #hud {
             position: fixed;
-            top: 0; left: 0; right: 0;
-            padding: 15px 20px;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: clamp(10px, 1.8vw, 18px) clamp(10px, 2vw, 22px);
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
             pointer-events: none;
             z-index: 10;
+            color: var(--text-main);
         }
+
+        #hud > div:first-child {
+            padding: 10px 14px;
+            background: var(--hud-glass);
+            border: 1px solid var(--hud-border);
+            border-radius: 14px;
+            box-shadow: var(--panel-shadow);
+            backdrop-filter: blur(7px);
+            -webkit-backdrop-filter: blur(7px);
+            min-width: min(52vw, 360px);
+        }
+
         #hud .score {
-            font-size: 24px;
-            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+            font-size: clamp(21px, 3.7vw, 28px);
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            text-shadow: 0 0 6px rgba(95, 243, 255, 0.45);
         }
+
         #hud .zone-info {
-            font-size: 14px;
-            color: #f0f;
-            text-shadow: 0 0 10px #f0f;
+            margin-top: 2px;
+            font-size: clamp(11px, 2.2vw, 14px);
+            color: var(--accent-amber);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            text-shadow: 0 0 4px rgba(255, 178, 93, 0.35);
         }
+
         #hud .lives {
-            font-size: 20px;
-            text-shadow: 0 0 10px #0ff;
+            margin-left: 8px;
+            padding: 8px 10px;
+            font-size: clamp(19px, 3vw, 24px);
+            background: var(--hud-glass);
+            border: 1px solid rgba(255, 103, 150, 0.55);
+            border-radius: 12px;
+            box-shadow: 0 0 8px rgba(255, 103, 150, 0.18);
+            text-shadow: 0 0 4px rgba(255, 103, 150, 0.45);
         }
+
         #hud .height-bar {
             position: absolute;
-            right: 10px;
-            top: 60px;
-            width: 6px;
-            height: calc(100vh - 120px);
-            background: rgba(0,255,255,0.1);
-            border-radius: 3px;
+            right: clamp(8px, 1.2vw, 14px);
+            top: 74px;
+            width: 12px;
+            height: calc(100vh - 132px);
+            background:
+                linear-gradient(180deg, rgba(95, 243, 255, 0.16), rgba(255, 178, 93, 0.12));
+            border: 1px solid rgba(95, 243, 255, 0.4);
+            border-radius: 999px;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.6), 0 0 14px rgba(95, 243, 255, 0.2);
+            overflow: hidden;
         }
+
         #hud .height-progress {
             position: absolute;
             bottom: 0;
             width: 100%;
-            background: #0ff;
-            border-radius: 3px;
-            box-shadow: 0 0 8px #0ff;
-            transition: height 0.3s;
+            background: linear-gradient(180deg, var(--accent-cyan), var(--accent-amber));
+            border-radius: 999px;
+            box-shadow: 0 0 5px rgba(95, 243, 255, 0.45), 0 0 7px rgba(255, 178, 93, 0.28);
+            transition: height 0.25s ease-out;
         }
+
         #hud .energy-bar {
-            width: 100px;
-            height: 6px;
-            background: rgba(255,0,255,0.2);
-            border-radius: 3px;
-            margin-top: 5px;
+            width: min(45vw, 190px);
+            height: 10px;
+            margin-top: 8px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.09);
+            border: 1px solid rgba(255, 103, 150, 0.4);
+            overflow: hidden;
         }
+
         #hud .energy-fill {
             height: 100%;
-            background: #f0f;
-            border-radius: 3px;
-            box-shadow: 0 0 6px #f0f;
-            transition: width 0.2s;
+            background: linear-gradient(90deg, #ff7db3 0%, #ff6796 45%, #ff935d 100%);
+            border-radius: 999px;
+            box-shadow: 0 0 4px rgba(255, 103, 150, 0.45);
+            transition: width 0.2s ease-out;
         }
 
         #menu-screen, #death-screen, #victory-screen {
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: rgba(0,0,0,0.85);
+            padding: 24px;
+            background:
+                radial-gradient(circle at 25% 20%, rgba(95, 243, 255, 0.18), transparent 45%),
+                radial-gradient(circle at 75% 80%, rgba(255, 103, 150, 0.16), transparent 45%),
+                rgba(1, 5, 10, 0.78);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             z-index: 20;
+            overflow: hidden;
         }
+
+        #menu-screen::before, #death-screen::before, #victory-screen::before {
+            content: "";
+            position: absolute;
+            inset: -10%;
+            background:
+                conic-gradient(from 120deg, transparent, rgba(95, 243, 255, 0.12), transparent 42%),
+                conic-gradient(from -40deg, transparent, rgba(255, 103, 150, 0.12), transparent 40%);
+            animation: spinOverlay 12s linear infinite;
+            pointer-events: none;
+        }
+
+        #menu-screen > *, #death-screen > *, #victory-screen > * {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+        }
+
         .screen-title {
-            font-size: 48px;
-            text-shadow: 0 0 20px #0ff, 0 0 40px #0ff, 0 0 80px #f0f;
+            font-size: clamp(42px, 9vw, 78px);
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            text-shadow: 0 0 8px rgba(95, 243, 255, 0.5), 0 0 16px rgba(255, 103, 150, 0.25);
             margin-bottom: 10px;
         }
+
         .screen-subtitle {
-            font-size: 16px;
-            color: #f0f;
-            text-shadow: 0 0 10px #f0f;
-            margin-bottom: 40px;
+            max-width: 720px;
+            font-size: clamp(14px, 2.6vw, 18px);
+            color: var(--text-soft);
+            letter-spacing: 0.08em;
+            margin-bottom: 34px;
+            text-transform: uppercase;
         }
+
         .screen-score {
-            font-size: 28px;
-            margin-bottom: 20px;
-            text-shadow: 0 0 15px #0ff;
+            font-size: clamp(24px, 5vw, 34px);
+            margin-bottom: 16px;
+            color: #effcff;
+            letter-spacing: 0.08em;
+            text-shadow: 0 0 5px rgba(95, 243, 255, 0.4);
         }
+
         .screen-btn {
-            font-family: 'Courier New', monospace;
-            font-size: 20px;
-            color: #0ff;
-            background: transparent;
-            border: 2px solid #0ff;
-            padding: 12px 40px;
+            position: relative;
+            overflow: hidden;
+            font-family: "Rajdhani", "Trebuchet MS", sans-serif;
+            font-size: clamp(18px, 3.6vw, 24px);
+            font-weight: 700;
+            color: #ebfbff;
+            background: linear-gradient(120deg, rgba(95, 243, 255, 0.22), rgba(255, 103, 150, 0.18));
+            border: 1px solid rgba(95, 243, 255, 0.75);
+            border-radius: 999px;
+            padding: 12px 44px;
             cursor: pointer;
-            text-shadow: 0 0 10px #0ff;
-            box-shadow: 0 0 15px rgba(0,255,255,0.3), inset 0 0 15px rgba(0,255,255,0.1);
-            transition: all 0.2s;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            box-shadow: 0 0 12px rgba(95, 243, 255, 0.2), inset 0 0 8px rgba(95, 243, 255, 0.08);
+            transition: transform 0.16s ease, box-shadow 0.2s ease, border-color 0.2s ease;
             pointer-events: all;
         }
-        .screen-btn:hover {
-            background: rgba(0,255,255,0.15);
-            box-shadow: 0 0 25px rgba(0,255,255,0.5), inset 0 0 25px rgba(0,255,255,0.2);
+
+        .screen-btn::after {
+            content: "";
+            position: absolute;
+            left: -25%;
+            top: 0;
+            width: 22%;
+            height: 100%;
+            transform: skewX(-25deg);
+            background: rgba(255, 255, 255, 0.38);
+            filter: blur(2px);
+            transition: left 0.3s ease;
         }
+
+        .screen-btn:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 178, 93, 0.9);
+            box-shadow: 0 0 14px rgba(255, 178, 93, 0.2), inset 0 0 12px rgba(255, 103, 150, 0.12);
+        }
+
+        .screen-btn:hover::after {
+            left: 112%;
+        }
+
         .controls-hint {
-            margin-top: 30px;
-            font-size: 12px;
-            color: rgba(0,255,255,0.5);
+            margin-top: 24px;
+            padding: 14px 16px;
+            max-width: min(92vw, 460px);
+            font-size: clamp(11px, 2.8vw, 13px);
+            color: rgba(214, 247, 255, 0.72);
             text-align: center;
             line-height: 1.8;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            background: rgba(5, 18, 34, 0.45);
+            border: 1px solid rgba(95, 243, 255, 0.24);
+            border-radius: 12px;
         }
-        .hidden { display: none !important; }
+
+        .hidden {
+            display: none !important;
+        }
 
         #zone-announcement {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 36px;
-            text-shadow: 0 0 20px #0ff, 0 0 40px #f0f;
+            font-size: clamp(34px, 10vw, 86px);
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-align: center;
+            text-shadow: 0 0 9px rgba(95, 243, 255, 0.5), 0 0 16px rgba(255, 103, 150, 0.2);
             pointer-events: none;
             z-index: 15;
             opacity: 0;
-            transition: opacity 0.3s;
+            transition: opacity 0.2s ease;
         }
+
         #zone-announcement.show {
             opacity: 1;
-            font-size: 72px;
             animation: countPulse 0.3s ease-out;
         }
+
         @keyframes countPulse {
-            0% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+            0% { transform: translate(-50%, -50%) scale(1.45); opacity: 0; }
             100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        @keyframes spinOverlay {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 700px) {
+            #hud {
+                padding: 8px 8px;
+            }
+
+            #hud > div:first-child {
+                min-width: 0;
+                width: min(75vw, 320px);
+                padding: 8px 10px;
+            }
+
+            #hud .height-bar {
+                top: 66px;
+                width: 10px;
+                height: calc(100vh - 116px);
+            }
+
+            #hud .lives {
+                margin-left: 4px;
+                padding: 6px 8px;
+            }
+
+            .controls-hint {
+                margin-top: 18px;
+                line-height: 1.7;
+            }
         }
     </style>
 </head>
@@ -178,8 +368,8 @@
         <button class="screen-btn" id="start-btn">START CLIMB</button>
         <div class="controls-hint">
             SPACE / TAP — Jump<br>
+            SPACE / TAP in air — Double Jump (costs energy)<br>
             A / D — Reverse Direction<br>
-            W — High Jump (costs energy)<br>
             S — Duck<br>
             SHIFT — Dash (unlocks Zone 3)
         </div>
@@ -189,6 +379,7 @@
         <div class="screen-title" style="color:#f44">SIGNAL LOST</div>
         <div class="screen-score">SCORE: <span id="death-score">0</span></div>
         <div class="screen-subtitle">Height reached: <span id="death-height">0</span>m</div>
+        <div class="screen-subtitle">Cause: <span id="death-cause">Unknown</span></div>
         <button class="screen-btn" id="retry-btn">RETRY</button>
     </div>
 

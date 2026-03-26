@@ -1,174 +1,499 @@
-// Level data for Signal Spire (Tower 1) - 3 zones for prototype
+// Procedural level generation with fairness constraints.
 // Platform types: solid, crumbling, bouncy, moving, phasing, conveyor
 
 const PI2 = Math.PI * 2;
+const JUMP_VELOCITY = 8;
+const GRAVITY_MAG = 18;
+const BASE_ANGULAR_SPEED = 1.2;
 
-function generateZone1() {
-    // Foundation - basic platforms, wide and forgiving, few sentinels
-    const platforms = [];
-    const enemies = [];
-    const collectibles = [];
-    const baseY = 0;
-
-    // Platforms spiral with wider gaps — requires well-timed jumps
-    // theta increments ~0.6-0.9 per step, height increase ~1.0-1.5
-    // Note: theta values mirrored in generateTower() for CCW play
-
-    // Starting area — wide safe platform, then increasing challenge
-    platforms.push({ type: 'solid', theta: 0, y: baseY + 0.5, width: 3.5 });      // huge start
-    platforms.push({ type: 'solid', theta: 0.7, y: baseY + 1.5, width: 1.0 });    // first jump
-    platforms.push({ type: 'solid', theta: 1.5, y: baseY + 2.7, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 2.4, y: baseY + 3.8, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 3.2, y: baseY + 5.0, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 4.1, y: baseY + 6.2, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 5.0, y: baseY + 7.3, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 5.8, y: baseY + 8.5, width: 0.9 });
-    platforms.push({ type: 'bouncy', theta: 0.4, y: baseY + 9.5, width: 0.7 });   // bouncy boost
-    platforms.push({ type: 'solid', theta: 1.0, y: baseY + 12.0, width: 1.0 });  // offset from bouncy
-    platforms.push({ type: 'solid', theta: 1.3, y: baseY + 13.2, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 2.2, y: baseY + 14.5, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 3.1, y: baseY + 15.7, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 4.0, y: baseY + 16.8, width: 0.9 });
-    platforms.push({ type: 'solid', theta: 4.9, y: baseY + 18.0, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 5.7, y: baseY + 19.5, width: 1.0 });
-
-    // Sentinels - basic patrol enemies
-    enemies.push({ type: 'sentinel', theta: 2.8, y: baseY + 3.5, patrolWidth: 0.6 });
-    enemies.push({ type: 'sentinel', theta: 0.3, y: baseY + 7.5, patrolWidth: 0.5 });
-    enemies.push({ type: 'sentinel', theta: 2.0, y: baseY + 17.5, patrolWidth: 0.7 });
-
-    // Collectible orbs
-    for (let i = 0; i < 15; i++) {
-        collectibles.push({
-            theta: (i * 1.3) % PI2,
-            y: baseY + 1 + i * 1.3,
-            value: i % 3 === 0 ? 50 : 10,
-        });
-    }
-
-    return { platforms, enemies, collectibles, height: 20 };
+function mulberry32(seed) {
+    let t = seed >>> 0;
+    return function rng() {
+        t += 0x6D2B79F5;
+        let r = Math.imul(t ^ (t >>> 15), 1 | t);
+        r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+        return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
 }
 
-function generateZone2() {
-    // Interference - crumbling + moving platforms, orbiters
-    const platforms = [];
-    const enemies = [];
-    const collectibles = [];
-    const baseY = 20;
-
-    platforms.push({ type: 'solid', theta: 0, y: baseY + 0.5, width: 1.0 });
-    platforms.push({ type: 'crumbling', theta: 1.0, y: baseY + 1.5, width: 0.7 });
-    platforms.push({ type: 'solid', theta: 2.2, y: baseY + 2.5, width: 0.8 });
-    platforms.push({ type: 'moving', theta: 3.0, y: baseY + 3.5, width: 0.7, moveRange: 0.8, moveSpeed: 1.0 });
-    platforms.push({ type: 'solid', theta: 4.2, y: baseY + 4.5, width: 0.8 });
-    platforms.push({ type: 'crumbling', theta: 5.0, y: baseY + 5.5, width: 0.7 });
-    platforms.push({ type: 'solid', theta: 5.8, y: baseY + 6.5, width: 0.9 });
-    platforms.push({ type: 'moving', theta: 0.5, y: baseY + 7.5, width: 0.7, moveRange: 1.0, moveSpeed: 0.8 });
-    platforms.push({ type: 'solid', theta: 1.5, y: baseY + 8.5, width: 0.8 });
-    platforms.push({ type: 'crumbling', theta: 2.5, y: baseY + 9.5, width: 0.6 });
-    platforms.push({ type: 'bouncy', theta: 3.5, y: baseY + 10.0, width: 0.7 });
-    platforms.push({ type: 'solid', theta: 3.5, y: baseY + 12.5, width: 1.0 });
-    platforms.push({ type: 'moving', theta: 4.5, y: baseY + 13.5, width: 0.7, moveRange: 1.2, moveSpeed: 1.2 });
-    platforms.push({ type: 'crumbling', theta: 5.5, y: baseY + 14.5, width: 0.6 });
-    platforms.push({ type: 'solid', theta: 0.2, y: baseY + 15.5, width: 0.8 });
-    platforms.push({ type: 'solid', theta: 1.2, y: baseY + 16.5, width: 0.7 });
-    platforms.push({ type: 'moving', theta: 2.2, y: baseY + 17.5, width: 0.7, moveRange: 0.9, moveSpeed: 1.1 });
-    platforms.push({ type: 'crumbling', theta: 3.2, y: baseY + 18.5, width: 0.6 });
-    platforms.push({ type: 'solid', theta: 4.2, y: baseY + 19.5, width: 1.0 });
-
-    // Orbiters
-    enemies.push({ type: 'orbiter', theta: 0, y: baseY + 5.0, orbitSpeed: 1.5 });
-    enemies.push({ type: 'orbiter', theta: Math.PI, y: baseY + 11.0, orbitSpeed: -1.2 });
-    enemies.push({ type: 'orbiter', theta: 1.0, y: baseY + 16.0, orbitSpeed: 1.8 });
-
-    // Sentinels
-    enemies.push({ type: 'sentinel', theta: 2.2, y: baseY + 2.5, patrolWidth: 0.5 });
-    enemies.push({ type: 'sentinel', theta: 1.5, y: baseY + 8.5, patrolWidth: 0.6 });
-
-    for (let i = 0; i < 12; i++) {
-        collectibles.push({
-            theta: (i * 1.6 + 0.5) % PI2,
-            y: baseY + 1 + i * 1.6,
-            value: i % 4 === 0 ? 100 : (i % 2 === 0 ? 50 : 10),
-        });
-    }
-
-    return { platforms, enemies, collectibles, height: 20 };
+function range(rng, min, max) {
+    return min + (max - min) * rng();
 }
 
-function generateZone3() {
-    // Storm - all platform types, zappers, increased difficulty
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function wrapAngle(theta) {
+    return ((theta % PI2) + PI2) % PI2;
+}
+
+function weightedChoice(rng, weights) {
+    let total = 0;
+    for (const value of Object.values(weights)) total += value;
+    let roll = rng() * total;
+
+    for (const [key, weight] of Object.entries(weights)) {
+        roll -= weight;
+        if (roll <= 0) return key;
+    }
+    return Object.keys(weights)[0];
+}
+
+function estimateAngularSpeedAtHeight(y) {
+    const speedMultiplier = clamp(0.5 + y * 0.02, 0.5, 1.5);
+    return BASE_ANGULAR_SPEED * speedMultiplier;
+}
+
+function isHardType(type) {
+    return type === 'crumbling' || type === 'moving' || type === 'phasing' || type === 'conveyor';
+}
+
+function jumpCost({ dy, dTheta, width, type }) {
+    const typeCost = {
+        solid: 0,
+        bouncy: 0.12,
+        crumbling: 0.42,
+        moving: 0.46,
+        phasing: 0.5,
+        conveyor: 0.38,
+    }[type] || 0;
+
+    const dyCost = Math.max(0, dy - 0.65) * 1.05;
+    const thetaCost = Math.max(0, dTheta - 0.3) * 0.95;
+    const widthCost = Math.max(0, 0.95 - width) * 0.45;
+    return dyCost + thetaCost + widthCost + typeCost;
+}
+
+function canReachGap({ fromY, dy, dTheta, fromWidth, toWidth, strictFactor }) {
+    // Solve vy*t - 0.5*g*t^2 = dy for the descending landing time.
+    const discriminant = JUMP_VELOCITY * JUMP_VELOCITY - 2 * GRAVITY_MAG * dy;
+    if (discriminant <= 0) return false;
+
+    const airTime = (JUMP_VELOCITY + Math.sqrt(discriminant)) / GRAVITY_MAG;
+    const angularSpeed = estimateAngularSpeedAtHeight(fromY);
+    const platformAssist = (fromWidth + toWidth) * 0.34;
+    const maxTheta = (angularSpeed * airTime + platformAssist + 0.06) * strictFactor;
+    return dTheta <= maxTheta;
+}
+
+function nearestThetaAtHeight(platforms, y) {
+    let best = platforms[0];
+    let bestDist = Math.abs(platforms[0].y - y);
+    for (let i = 1; i < platforms.length; i++) {
+        const dist = Math.abs(platforms[i].y - y);
+        if (dist < bestDist) {
+            best = platforms[i];
+            bestDist = dist;
+        }
+    }
+    return best.theta;
+}
+
+function makePlatform(type, theta, y, width, cfg, rng) {
+    const platform = { type, theta, y, width };
+
+    if (type === 'moving') {
+        platform.moveRange = range(rng, cfg.moveRange[0], cfg.moveRange[1]);
+        platform.moveSpeed = range(rng, cfg.moveSpeed[0], cfg.moveSpeed[1]);
+    } else if (type === 'phasing') {
+        platform.phaseSpeed = range(rng, cfg.phaseSpeed[0], cfg.phaseSpeed[1]);
+    } else if (type === 'conveyor') {
+        const sign = rng() < 0.5 ? -1 : 1;
+        platform.conveyorSpeed = sign * range(rng, cfg.conveyorSpeed[0], cfg.conveyorSpeed[1]);
+    }
+
+    return platform;
+}
+
+function chooseZoneStartTheta(cfg, rng, entryFrom) {
+    if (!entryFrom) return 0;
+
+    const startY = cfg.baseY + 0.5;
+    const dy = startY - entryFrom.y;
+    const thetaRange = cfg.entryThetaRange || cfg.catchThetaRange;
+    const fromWidth = entryFrom.width || cfg.catchWidthRange[1];
+    const toWidth = cfg.startWidth;
+
+    for (let attempt = 0; attempt < 80; attempt++) {
+        const dTheta = range(rng, thetaRange[0], thetaRange[1]);
+        if (canReachGap({
+            fromY: entryFrom.y,
+            dy,
+            dTheta,
+            fromWidth,
+            toWidth,
+            strictFactor: Math.min(1, cfg.strictFactor + 0.03),
+        })) {
+            return wrapAngle(entryFrom.theta + dTheta);
+        }
+    }
+
+    const fallbackTheta = clamp((thetaRange[0] + thetaRange[1]) * 0.5, 0.18, 0.58);
+    return wrapAngle(entryFrom.theta + fallbackTheta);
+}
+
+function buildZonePlatforms(cfg, rng, entryFrom = null) {
     const platforms = [];
+    const typeCounts = {
+        solid: 0,
+        crumbling: 0,
+        bouncy: 0,
+        moving: 0,
+        phasing: 0,
+        conveyor: 0,
+    };
+
+    let y = cfg.baseY + 0.5;
+    let theta = chooseZoneStartTheta(cfg, rng, entryFrom);
+    let previousType = 'solid';
+    let recoveryRequired = false;
+    let jumpsSinceCatch = 0;
+    const recentCosts = [];
+
+    const start = { type: 'solid', theta, y, width: cfg.startWidth };
+    platforms.push(start);
+    typeCounts.solid += 1;
+
+    for (let step = 1; step < cfg.platformCount; step++) {
+        const isLast = step === cfg.platformCount - 1;
+        let placed = false;
+
+        for (let attempt = 0; attempt < 140; attempt++) {
+            const remainingSteps = cfg.platformCount - step;
+            const remainingHeight = cfg.targetTop - y;
+            const baselineDy = remainingHeight / Math.max(1, remainingSteps);
+
+            let catchPlatform =
+                recoveryRequired ||
+                jumpsSinceCatch >= cfg.catchEvery;
+
+            // Do not force recovery platforms when that would make the zone mathematically
+            // unable to reach its target top height.
+            if (catchPlatform) {
+                const stepsAfterThis = Math.max(0, cfg.platformCount - step - 1);
+                const maxHeightIfCatchNow = y + cfg.catchDyRange[1] + stepsAfterThis * cfg.dyRange[1];
+                if (maxHeightIfCatchNow < cfg.targetTop - 0.05) {
+                    catchPlatform = false;
+                }
+            }
+
+            const dyRange = catchPlatform ? cfg.catchDyRange : cfg.dyRange;
+            const dyJitter = catchPlatform ? cfg.catchDyJitter : cfg.dyJitter;
+            const stepsAfterThis = Math.max(0, cfg.platformCount - step - 1);
+            const minDyNeeded = cfg.targetTop - y - stepsAfterThis * cfg.dyRange[1];
+            const maxDyAllowed = cfg.targetTop - y - stepsAfterThis * cfg.catchDyRange[0];
+            const dyMin = Math.max(dyRange[0], minDyNeeded);
+            const dyMax = Math.min(dyRange[1], maxDyAllowed);
+            if (dyMin > dyMax) {
+                continue;
+            }
+            const dy = clamp(
+                baselineDy + range(rng, -dyJitter, dyJitter),
+                dyMin,
+                dyMax
+            );
+
+            const thetaRange = catchPlatform ? cfg.catchThetaRange : cfg.thetaRange;
+            const dTheta = range(rng, thetaRange[0], thetaRange[1]);
+
+            const widthRange = catchPlatform ? cfg.catchWidthRange : cfg.widthRange;
+            const width = range(rng, widthRange[0], widthRange[1]);
+
+            let type = 'solid';
+            if (!isLast && !catchPlatform) {
+                type = weightedChoice(rng, cfg.typeWeights);
+            }
+
+            if ((previousType === 'crumbling' || previousType === 'phasing') && type !== 'solid') {
+                continue;
+            }
+
+            if (isHardType(type) && isHardType(previousType)) {
+                continue;
+            }
+
+            if (cfg.maxTypeCounts[type] !== undefined && typeCounts[type] >= cfg.maxTypeCounts[type]) {
+                continue;
+            }
+
+            const previous = platforms[platforms.length - 1];
+            const movingPenalty = type === 'moving' ? (cfg.movingSafetyPenalty || 0) : 0;
+            const strictFactor = cfg.strictFactor - (isHardType(type) ? cfg.hardStrictPenalty : 0) - movingPenalty;
+            if (!canReachGap({
+                fromY: y,
+                dy,
+                dTheta,
+                fromWidth: previous.width,
+                toWidth: width,
+                strictFactor,
+            })) {
+                continue;
+            }
+
+            const cost = jumpCost({ dy, dTheta, width, type });
+            const recentTotal = recentCosts.reduce((sum, v) => sum + v, 0) + cost;
+            if (!catchPlatform && recentTotal > cfg.maxRecentCost) {
+                continue;
+            }
+
+            y += dy;
+            theta = wrapAngle(theta + dTheta);
+            const platform = makePlatform(type, theta, y, width, cfg, rng);
+            platforms.push(platform);
+
+            typeCounts[type] += 1;
+            recentCosts.push(cost);
+            if (recentCosts.length > cfg.recentWindow) recentCosts.shift();
+
+            recoveryRequired = type === 'crumbling' || type === 'phasing';
+            jumpsSinceCatch = catchPlatform ? 0 : jumpsSinceCatch + 1;
+            previousType = type;
+            placed = true;
+            break;
+        }
+
+        if (!placed) {
+            const remainingSteps = cfg.platformCount - step;
+            const fallbackDy = clamp(
+                (cfg.targetTop - y) / Math.max(1, remainingSteps),
+                cfg.catchDyRange[0],
+                cfg.dyRange[1]
+            );
+            const fallbackTheta = range(rng, cfg.catchThetaRange[0], cfg.catchThetaRange[1]);
+            const fallbackWidth = cfg.catchWidthRange[1];
+
+            y += fallbackDy;
+            theta = wrapAngle(theta + fallbackTheta);
+
+            platforms.push({ type: 'solid', theta, y, width: fallbackWidth });
+            typeCounts.solid += 1;
+            recentCosts.push(jumpCost({
+                dy: fallbackDy,
+                dTheta: fallbackTheta,
+                width: fallbackWidth,
+                type: 'solid',
+            }));
+            if (recentCosts.length > cfg.recentWindow) recentCosts.shift();
+            recoveryRequired = false;
+            jumpsSinceCatch = 0;
+            previousType = 'solid';
+        }
+    }
+
+    const finalPlatform = platforms[platforms.length - 1];
+    const yDiff = cfg.targetTop - finalPlatform.y;
+    if (Math.abs(yDiff) <= 0.5) finalPlatform.y = cfg.targetTop;
+
+    return platforms;
+}
+
+function buildZoneEnemies(cfg, platforms, rng) {
     const enemies = [];
+    const thetaAt = (y, offset = 0) => wrapAngle(nearestThetaAtHeight(platforms, y) + offset);
+
+    if (cfg.enemyProfile === 'foundation') {
+        enemies.push({ type: 'sentinel', theta: thetaAt(cfg.baseY + 3.5, 0.18), y: cfg.baseY + 3.5, patrolWidth: 0.55 });
+        enemies.push({ type: 'sentinel', theta: thetaAt(cfg.baseY + 7.5, -0.12), y: cfg.baseY + 7.5, patrolWidth: 0.5 });
+        enemies.push({ type: 'sentinel', theta: thetaAt(cfg.baseY + 17.5, 0.16), y: cfg.baseY + 17.5, patrolWidth: 0.65 });
+    } else if (cfg.enemyProfile === 'interference') {
+        enemies.push({ type: 'orbiter', theta: thetaAt(cfg.baseY + 5.0), y: cfg.baseY + 5.0, orbitSpeed: 1.35 });
+        enemies.push({ type: 'orbiter', theta: thetaAt(cfg.baseY + 11.0, PI2 / 2), y: cfg.baseY + 11.0, orbitSpeed: -1.1 });
+        enemies.push({ type: 'orbiter', theta: thetaAt(cfg.baseY + 16.0, -PI2 / 3), y: cfg.baseY + 16.0, orbitSpeed: 1.55 });
+        enemies.push({ type: 'sentinel', theta: thetaAt(cfg.baseY + 2.5), y: cfg.baseY + 2.5, patrolWidth: 0.5 });
+        enemies.push({ type: 'sentinel', theta: thetaAt(cfg.baseY + 8.5, 0.12), y: cfg.baseY + 8.5, patrolWidth: 0.58 });
+    } else if (cfg.enemyProfile === 'storm') {
+        enemies.push({ type: 'zapper', theta: thetaAt(cfg.baseY + 4.0), y: cfg.baseY + 4.0, arcSpan: 0.6, onTime: 1.5, offTime: 1.5 });
+        enemies.push({ type: 'zapper', theta: thetaAt(cfg.baseY + 9.5, PI2 / 3), y: cfg.baseY + 9.5, arcSpan: 0.78, onTime: 1.1, offTime: 1.5 });
+        enemies.push({ type: 'zapper', theta: thetaAt(cfg.baseY + 14.0, -PI2 / 4), y: cfg.baseY + 14.0, arcSpan: 0.55, onTime: 1.2, offTime: 1.3 });
+        enemies.push({ type: 'orbiter', theta: thetaAt(cfg.baseY + 3.0), y: cfg.baseY + 3.0, orbitSpeed: 1.9 });
+        enemies.push({ type: 'orbiter', theta: thetaAt(cfg.baseY + 13.0, PI2 / 2), y: cfg.baseY + 13.0, orbitSpeed: -2.05 });
+        enemies.push({ type: 'sentinel', theta: thetaAt(cfg.baseY + 2.5), y: cfg.baseY + 2.5, patrolWidth: 0.5 });
+        enemies.push({ type: 'sentinel', theta: thetaAt(cfg.baseY + 16.5, -0.15), y: cfg.baseY + 16.5, patrolWidth: 0.62 });
+    }
+
+    // Slight random phase variety without hurting consistency.
+    for (const enemy of enemies) {
+        if (enemy.type === 'sentinel') {
+            enemy.theta = wrapAngle(enemy.theta + range(rng, -0.08, 0.08));
+        }
+    }
+
+    return enemies;
+}
+
+function buildZoneCollectibles(cfg, platforms, rng) {
     const collectibles = [];
-    const baseY = 40;
+    const count = cfg.collectibleCount;
 
-    platforms.push({ type: 'solid', theta: 0, y: baseY + 0.5, width: 0.9 });
-    platforms.push({ type: 'phasing', theta: 1.0, y: baseY + 1.5, width: 0.7, phaseSpeed: 1.5 });
-    platforms.push({ type: 'solid', theta: 2.0, y: baseY + 2.5, width: 0.7 });
-    platforms.push({ type: 'conveyor', theta: 3.0, y: baseY + 3.5, width: 0.8, conveyorSpeed: 1.0 });
-    platforms.push({ type: 'crumbling', theta: 4.0, y: baseY + 4.5, width: 0.6 });
-    platforms.push({ type: 'moving', theta: 5.0, y: baseY + 5.5, width: 0.6, moveRange: 1.0, moveSpeed: 1.5 });
-    platforms.push({ type: 'solid', theta: 0.0, y: baseY + 6.5, width: 0.7 });
-    platforms.push({ type: 'phasing', theta: 1.0, y: baseY + 7.5, width: 0.6, phaseSpeed: 2.0 });
-    platforms.push({ type: 'bouncy', theta: 2.0, y: baseY + 8.0, width: 0.6 });
-    platforms.push({ type: 'solid', theta: 2.0, y: baseY + 10.5, width: 0.8 });
-    platforms.push({ type: 'conveyor', theta: 3.0, y: baseY + 11.5, width: 0.7, conveyorSpeed: -1.2 });
-    platforms.push({ type: 'moving', theta: 4.0, y: baseY + 12.5, width: 0.6, moveRange: 1.2, moveSpeed: 1.3 });
-    platforms.push({ type: 'crumbling', theta: 5.0, y: baseY + 13.5, width: 0.6 });
-    platforms.push({ type: 'solid', theta: 5.8, y: baseY + 14.5, width: 0.8 });
-    platforms.push({ type: 'phasing', theta: 0.5, y: baseY + 15.5, width: 0.6, phaseSpeed: 1.8 });
-    platforms.push({ type: 'solid', theta: 1.5, y: baseY + 16.5, width: 0.7 });
-    platforms.push({ type: 'moving', theta: 2.5, y: baseY + 17.5, width: 0.6, moveRange: 1.0, moveSpeed: 1.5 });
-    platforms.push({ type: 'crumbling', theta: 3.5, y: baseY + 18.5, width: 0.6 });
-    platforms.push({ type: 'solid', theta: 4.5, y: baseY + 19.5, width: 1.2 }); // Final platform
-
-    // Zappers
-    enemies.push({ type: 'zapper', theta: 1.5, y: baseY + 4.0, arcSpan: 0.6, onTime: 1.5, offTime: 1.5 });
-    enemies.push({ type: 'zapper', theta: 4.5, y: baseY + 9.5, arcSpan: 0.8, onTime: 1.0, offTime: 1.5 });
-    enemies.push({ type: 'zapper', theta: 0.0, y: baseY + 14.0, arcSpan: 0.5, onTime: 1.2, offTime: 1.3 });
-
-    // Orbiters
-    enemies.push({ type: 'orbiter', theta: 0, y: baseY + 3.0, orbitSpeed: 2.0 });
-    enemies.push({ type: 'orbiter', theta: Math.PI, y: baseY + 13.0, orbitSpeed: -2.2 });
-
-    // Sentinels
-    enemies.push({ type: 'sentinel', theta: 2.0, y: baseY + 2.5, patrolWidth: 0.5 });
-    enemies.push({ type: 'sentinel', theta: 1.5, y: baseY + 16.5, patrolWidth: 0.6 });
-
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < count; i++) {
+        const progress = (i + 1) / (count + 1);
+        const y = cfg.baseY + 0.8 + progress * 18.2;
+        const theta = wrapAngle(nearestThetaAtHeight(platforms, y) + range(rng, -0.42, 0.42));
         collectibles.push({
-            theta: (i * 1.1 + 1.0) % PI2,
-            y: baseY + 0.5 + i * 1.3,
-            value: i % 3 === 0 ? 100 : (i % 2 === 0 ? 50 : 10),
+            theta,
+            y,
+            value: cfg.collectibleValue(i),
         });
     }
+
+    return collectibles;
+}
+
+function clonePlatform(platform) {
+    if (!platform) return null;
+    return {
+        type: platform.type,
+        theta: platform.theta,
+        y: platform.y,
+        width: platform.width,
+    };
+}
+
+const ZONE_CONFIGS = [
+    {
+        name: 'FOUNDATION',
+        baseY: 0,
+        targetTop: 19.5,
+        platformCount: 16,
+        startWidth: 3.3,
+        catchEvery: 4,
+        dyRange: [0.9, 1.32],
+        dyJitter: 0.2,
+        catchDyRange: [0.65, 1.0],
+        catchDyJitter: 0.12,
+        thetaRange: [0.5, 0.82],
+        catchThetaRange: [0.34, 0.62],
+        widthRange: [0.78, 1.02],
+        catchWidthRange: [0.95, 1.28],
+        strictFactor: 0.94,
+        hardStrictPenalty: 0.03,
+        maxRecentCost: 4.15,
+        recentWindow: 4,
+        maxTypeCounts: { crumbling: 2, bouncy: 2, moving: 0, phasing: 0, conveyor: 0 },
+        typeWeights: { solid: 0.82, bouncy: 0.14, crumbling: 0.04 },
+        moveRange: [0.45, 0.8],
+        moveSpeed: [0.75, 1.15],
+        phaseSpeed: [1.3, 1.9],
+        conveyorSpeed: [0.85, 1.2],
+        collectibleCount: 15,
+        collectibleValue: (i) => (i % 4 === 0 ? 50 : 10),
+        enemyProfile: 'foundation',
+    },
+    {
+        name: 'INTERFERENCE',
+        baseY: 20,
+        targetTop: 39.5,
+        platformCount: 20,
+        startWidth: 1.1,
+        catchEvery: 4,
+        dyRange: [0.88, 1.26],
+        dyJitter: 0.2,
+        catchDyRange: [0.62, 0.98],
+        catchDyJitter: 0.11,
+        entryThetaRange: [0.34, 0.58],
+        thetaRange: [0.48, 0.88],
+        catchThetaRange: [0.32, 0.7],
+        widthRange: [0.68, 0.98],
+        catchWidthRange: [0.84, 1.16],
+        strictFactor: 0.92,
+        hardStrictPenalty: 0.045,
+        movingSafetyPenalty: 0.06,
+        maxRecentCost: 4.95,
+        recentWindow: 4,
+        maxTypeCounts: { crumbling: 4, bouncy: 2, moving: 4, phasing: 0, conveyor: 1 },
+        typeWeights: {
+            solid: 0.49,
+            crumbling: 0.21,
+            moving: 0.18,
+            bouncy: 0.09,
+            conveyor: 0.03,
+        },
+        moveRange: [0.22, 0.5],
+        moveSpeed: [0.75, 1.2],
+        phaseSpeed: [1.35, 2.0],
+        conveyorSpeed: [0.85, 1.3],
+        collectibleCount: 12,
+        collectibleValue: (i) => (i % 5 === 0 ? 100 : (i % 2 === 0 ? 50 : 10)),
+        enemyProfile: 'interference',
+    },
+    {
+        name: 'STORM',
+        baseY: 40,
+        targetTop: 59.5,
+        platformCount: 20,
+        startWidth: 0.95,
+        catchEvery: 3,
+        dyRange: [0.86, 1.22],
+        dyJitter: 0.19,
+        catchDyRange: [0.6, 0.94],
+        catchDyJitter: 0.1,
+        entryThetaRange: [0.36, 0.62],
+        thetaRange: [0.5, 0.92],
+        catchThetaRange: [0.34, 0.74],
+        widthRange: [0.62, 0.92],
+        catchWidthRange: [0.8, 1.1],
+        strictFactor: 0.9,
+        hardStrictPenalty: 0.05,
+        movingSafetyPenalty: 0.08,
+        maxRecentCost: 5.25,
+        recentWindow: 4,
+        maxTypeCounts: { crumbling: 4, bouncy: 2, moving: 4, phasing: 3, conveyor: 3 },
+        typeWeights: {
+            solid: 0.32,
+            crumbling: 0.16,
+            moving: 0.18,
+            phasing: 0.14,
+            conveyor: 0.1,
+            bouncy: 0.1,
+        },
+        moveRange: [0.26, 0.58],
+        moveSpeed: [1.0, 1.55],
+        phaseSpeed: [1.35, 2.1],
+        conveyorSpeed: [0.9, 1.35],
+        collectibleCount: 15,
+        collectibleValue: (i) => (i % 3 === 0 ? 100 : (i % 2 === 0 ? 50 : 10)),
+        enemyProfile: 'storm',
+    },
+];
+
+function generateZone(zoneIndex, seed = Math.floor(Math.random() * 0xFFFFFFFF), entryFrom = null) {
+    const cfg = ZONE_CONFIGS[zoneIndex];
+    const rng = mulberry32(seed >>> 0);
+
+    const platforms = buildZonePlatforms(cfg, rng, entryFrom);
+    const enemies = buildZoneEnemies(cfg, platforms, rng);
+    const collectibles = buildZoneCollectibles(cfg, platforms, rng);
 
     return { platforms, enemies, collectibles, height: 20 };
 }
 
 export const ZONES = [
-    { name: 'FOUNDATION', color1: '#00ffff', color2: '#0044aa', generate: generateZone1 },
-    { name: 'INTERFERENCE', color1: '#ff00ff', color2: '#440088', generate: generateZone2 },
-    { name: 'STORM', color1: '#ffaa00', color2: '#882200', generate: generateZone3 },
+    { name: 'FOUNDATION', color1: '#00ffff', color2: '#0044aa', generate: (seed, entryFrom) => generateZone(0, seed, entryFrom) },
+    { name: 'INTERFERENCE', color1: '#ff00ff', color2: '#440088', generate: (seed, entryFrom) => generateZone(1, seed, entryFrom) },
+    { name: 'STORM', color1: '#ffaa00', color2: '#882200', generate: (seed, entryFrom) => generateZone(2, seed, entryFrom) },
 ];
 
 export const TOWER_HEIGHT = 60; // Total height of the tower
 
-export function generateTower() {
+export function generateTower(seed = Math.floor(Math.random() * 0xFFFFFFFF)) {
     const allPlatforms = [];
     const allEnemies = [];
     const allCollectibles = [];
+    const rootRng = mulberry32(seed >>> 0);
+    let previousZoneExit = null;
 
     for (const zone of ZONES) {
-        const data = zone.generate();
+        const zoneSeed = Math.floor(rootRng() * 0xFFFFFFFF);
+        const data = zone.generate(zoneSeed, previousZoneExit);
         allPlatforms.push(...data.platforms);
         allEnemies.push(...data.enemies);
         allCollectibles.push(...data.collectibles);
+        previousZoneExit = clonePlatform(data.platforms[data.platforms.length - 1]);
     }
 
-    // Mirror all theta values for CCW player direction (left-to-right visually)
-    // Platforms spiral in decreasing theta so CCW runner encounters them naturally
+    // Mirror all theta values for CCW player direction (left-to-right visually).
+    // Platforms spiral in decreasing theta so CCW runner encounters them naturally.
     for (const p of allPlatforms) {
         p.theta = (PI2 - p.theta) % PI2;
     }

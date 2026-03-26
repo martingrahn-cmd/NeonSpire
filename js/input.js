@@ -59,7 +59,7 @@ export class InputManager {
             if (dist >= 50) {
                 if (Math.abs(dy) > Math.abs(dx)) {
                     if (dy < -60) {
-                        this._touchQueue.push('highJump');
+                        this._touchQueue.push('jump');
                     } else if (dy > 60) {
                         this._touchQueue.push('duck');
                     }
@@ -119,9 +119,9 @@ export class InputManager {
             this._jumpPressed = true;
         }
 
-        // Keyboard: high jump
+        // Keyboard: W acts as jump so double-jump uses same action
         if (this.keys['KeyW'] && !this._highJumpPressed) {
-            this.actions.highJump = true;
+            this.actions.jump = true;
             this._highJumpPressed = true;
         }
 
