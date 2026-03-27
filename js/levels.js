@@ -2,7 +2,7 @@
 // Platform types: solid, crumbling, bouncy, moving, phasing, conveyor
 
 const PI2 = Math.PI * 2;
-const JUMP_VELOCITY = 8;
+const JUMP_VELOCITY = 7;
 const GRAVITY_MAG = 18;
 const BASE_ANGULAR_SPEED = 1.2;
 
@@ -65,7 +65,7 @@ function jumpCost({ dy, dTheta, width, type }) {
     return dyCost + thetaCost + widthCost + typeCost;
 }
 
-function canReachGap({ fromY, dy, dTheta, fromWidth, toWidth, strictFactor }) {
+function canReachGap({ fromY, dy, dTheta, fromWidth, toWidth, strictFactor, minGapFactor = 1 }) {
     // Solve vy*t - 0.5*g*t^2 = dy for the descending landing time.
     const discriminant = JUMP_VELOCITY * JUMP_VELOCITY - 2 * GRAVITY_MAG * dy;
     if (discriminant <= 0) return false;
@@ -74,7 +74,10 @@ function canReachGap({ fromY, dy, dTheta, fromWidth, toWidth, strictFactor }) {
     const angularSpeed = estimateAngularSpeedAtHeight(fromY);
     const platformAssist = (fromWidth + toWidth) * 0.34;
     const maxTheta = (angularSpeed * airTime + platformAssist + 0.06) * strictFactor;
-    return dTheta <= maxTheta;
+    const apexTime = JUMP_VELOCITY / GRAVITY_MAG;
+    const landingHalfWindow = toWidth / 2 + 0.08;
+    const minTheta = Math.max(0, (angularSpeed * apexTime - landingHalfWindow - 0.04) * minGapFactor);
+    return dTheta <= maxTheta && dTheta >= minTheta;
 }
 
 function nearestThetaAtHeight(platforms, y) {
@@ -124,6 +127,7 @@ function chooseZoneStartTheta(cfg, rng, entryFrom) {
             fromWidth,
             toWidth,
             strictFactor: Math.min(1, cfg.strictFactor + 0.03),
+            minGapFactor: cfg.entryMinGapFactor ?? cfg.minGapFactor ?? 1,
         })) {
             return wrapAngle(entryFrom.theta + dTheta);
         }
@@ -150,6 +154,12 @@ function buildZonePlatforms(cfg, rng, entryFrom = null) {
     let recoveryRequired = false;
     let jumpsSinceCatch = 0;
     const recentCosts = [];
+    let flowDy = clamp(
+        (cfg.targetTop - y) / Math.max(1, cfg.platformCount - 1),
+        cfg.dyRange[0],
+        cfg.dyRange[1]
+    );
+    let flowTheta = (cfg.thetaRange[0] + cfg.thetaRange[1]) * 0.5;
 
     const start = { type: 'solid', theta, y, width: cfg.startWidth };
     platforms.push(start);
@@ -179,7 +189,6 @@ function buildZonePlatforms(cfg, rng, entryFrom = null) {
             }
 
             const dyRange = catchPlatform ? cfg.catchDyRange : cfg.dyRange;
-            const dyJitter = catchPlatform ? cfg.catchDyJitter : cfg.dyJitter;
             const stepsAfterThis = Math.max(0, cfg.platformCount - step - 1);
             const minDyNeeded = cfg.targetTop - y - stepsAfterThis * cfg.dyRange[1];
             const maxDyAllowed = cfg.targetTop - y - stepsAfterThis * cfg.catchDyRange[0];
@@ -188,17 +197,34 @@ function buildZonePlatforms(cfg, rng, entryFrom = null) {
             if (dyMin > dyMax) {
                 continue;
             }
-            const dy = clamp(
-                baselineDy + range(rng, -dyJitter, dyJitter),
-                dyMin,
-                dyMax
-            );
+            const dyBlend = catchPlatform ? (cfg.catchFlowBlend ?? cfg.flowBlend ?? 0.62) : (cfg.flowBlend ?? 0.62);
+            const dyNoise = catchPlatform ? (cfg.catchFlowDyNoise ?? cfg.flowDyNoise ?? 0.1) : (cfg.flowDyNoise ?? 0.1);
+            const dyTarget = clamp(flowDy + (baselineDy - flowDy) * dyBlend, dyMin, dyMax);
+            const dy = clamp(dyTarget + range(rng, -dyNoise, dyNoise), dyMin, dyMax);
 
             const thetaRange = catchPlatform ? cfg.catchThetaRange : cfg.thetaRange;
-            const dTheta = range(rng, thetaRange[0], thetaRange[1]);
+            const thetaMin = thetaRange[0];
+            const thetaMax = thetaRange[1];
+            const thetaMid = (thetaMin + thetaMax) * 0.5;
+            const thetaDrift = catchPlatform ? (cfg.catchThetaDrift ?? cfg.thetaDrift ?? 0.28) : (cfg.thetaDrift ?? 0.28);
+            const thetaNoise = catchPlatform ? (cfg.catchFlowThetaNoise ?? cfg.flowThetaNoise ?? 0.12) : (cfg.flowThetaNoise ?? 0.12);
+            const maxThetaStepDelta = catchPlatform ? (cfg.catchMaxThetaStepDelta ?? cfg.maxThetaStepDelta ?? 0.24) : (cfg.maxThetaStepDelta ?? 0.24);
+            const thetaTarget = flowTheta + (thetaMid - flowTheta) * thetaDrift;
+            const flowThetaMin = Math.max(thetaMin, flowTheta - maxThetaStepDelta);
+            const flowThetaMax = Math.min(thetaMax, flowTheta + maxThetaStepDelta);
+            if (flowThetaMin > flowThetaMax) {
+                continue;
+            }
+            const dTheta = clamp(thetaTarget + range(rng, -thetaNoise, thetaNoise), flowThetaMin, flowThetaMax);
 
             const widthRange = catchPlatform ? cfg.catchWidthRange : cfg.widthRange;
-            const width = range(rng, widthRange[0], widthRange[1]);
+            const widthMid = (widthRange[0] + widthRange[1]) * 0.5;
+            const widthNoise = catchPlatform ? (cfg.catchFlowWidthNoise ?? cfg.flowWidthNoise ?? 0.12) : (cfg.flowWidthNoise ?? 0.12);
+            const width = clamp(
+                widthMid + range(rng, -widthNoise, widthNoise),
+                widthRange[0],
+                widthRange[1]
+            );
 
             let type = 'solid';
             if (!isLast && !catchPlatform) {
@@ -227,6 +253,7 @@ function buildZonePlatforms(cfg, rng, entryFrom = null) {
                 fromWidth: previous.width,
                 toWidth: width,
                 strictFactor,
+                minGapFactor: catchPlatform ? (cfg.catchMinGapFactor ?? cfg.minGapFactor ?? 1) : (cfg.minGapFactor ?? 1),
             })) {
                 continue;
             }
@@ -245,6 +272,9 @@ function buildZonePlatforms(cfg, rng, entryFrom = null) {
             typeCounts[type] += 1;
             recentCosts.push(cost);
             if (recentCosts.length > cfg.recentWindow) recentCosts.shift();
+            const flowAdapt = catchPlatform ? (cfg.catchFlowAdapt ?? cfg.flowAdapt ?? 0.65) : (cfg.flowAdapt ?? 0.65);
+            flowDy = flowDy + (dy - flowDy) * flowAdapt;
+            flowTheta = flowTheta + (dTheta - flowTheta) * flowAdapt;
 
             recoveryRequired = type === 'crumbling' || type === 'phasing';
             jumpsSinceCatch = catchPlatform ? 0 : jumpsSinceCatch + 1;
@@ -275,6 +305,8 @@ function buildZonePlatforms(cfg, rng, entryFrom = null) {
                 type: 'solid',
             }));
             if (recentCosts.length > cfg.recentWindow) recentCosts.shift();
+            flowDy = flowDy + (fallbackDy - flowDy) * 0.7;
+            flowTheta = flowTheta + (fallbackTheta - flowTheta) * 0.7;
             recoveryRequired = false;
             jumpsSinceCatch = 0;
             previousType = 'solid';
@@ -283,7 +315,7 @@ function buildZonePlatforms(cfg, rng, entryFrom = null) {
 
     const finalPlatform = platforms[platforms.length - 1];
     const yDiff = cfg.targetTop - finalPlatform.y;
-    if (Math.abs(yDiff) <= 0.5) finalPlatform.y = cfg.targetTop;
+    if (Math.abs(yDiff) <= 0.2) finalPlatform.y = cfg.targetTop;
 
     return platforms;
 }
@@ -358,17 +390,34 @@ const ZONE_CONFIGS = [
         platformCount: 16,
         startWidth: 3.3,
         catchEvery: 4,
-        dyRange: [0.9, 1.32],
-        dyJitter: 0.2,
-        catchDyRange: [0.65, 1.0],
+        dyRange: [0.98, 1.3],
+        dyJitter: 0.18,
+        catchDyRange: [0.72, 1.02],
         catchDyJitter: 0.12,
-        thetaRange: [0.5, 0.82],
-        catchThetaRange: [0.34, 0.62],
-        widthRange: [0.78, 1.02],
-        catchWidthRange: [0.95, 1.28],
+        flowBlend: 0.68,
+        flowDyNoise: 0.06,
+        flowThetaNoise: 0.08,
+        flowWidthNoise: 0.1,
+        maxThetaStepDelta: 0.16,
+        thetaDrift: 0.32,
+        flowAdapt: 0.7,
+        catchFlowBlend: 0.74,
+        catchFlowDyNoise: 0.05,
+        catchFlowThetaNoise: 0.06,
+        catchFlowWidthNoise: 0.08,
+        catchMaxThetaStepDelta: 0.14,
+        catchThetaDrift: 0.36,
+        catchFlowAdapt: 0.72,
+        minGapFactor: 0.84,
+        catchMinGapFactor: 0.8,
+        entryMinGapFactor: 0.82,
+        thetaRange: [0.56, 0.9],
+        catchThetaRange: [0.4, 0.7],
+        widthRange: [0.8, 1.04],
+        catchWidthRange: [0.98, 1.3],
         strictFactor: 0.94,
         hardStrictPenalty: 0.03,
-        maxRecentCost: 4.15,
+        maxRecentCost: 4.35,
         recentWindow: 4,
         maxTypeCounts: { crumbling: 2, bouncy: 2, moving: 0, phasing: 0, conveyor: 0 },
         typeWeights: { solid: 0.82, bouncy: 0.14, crumbling: 0.04 },
@@ -387,26 +436,43 @@ const ZONE_CONFIGS = [
         platformCount: 20,
         startWidth: 1.1,
         catchEvery: 4,
-        dyRange: [0.88, 1.26],
+        dyRange: [0.94, 1.28],
         dyJitter: 0.2,
-        catchDyRange: [0.62, 0.98],
+        catchDyRange: [0.68, 1.0],
         catchDyJitter: 0.11,
-        entryThetaRange: [0.34, 0.58],
-        thetaRange: [0.48, 0.88],
-        catchThetaRange: [0.32, 0.7],
-        widthRange: [0.68, 0.98],
-        catchWidthRange: [0.84, 1.16],
+        flowBlend: 0.62,
+        flowDyNoise: 0.07,
+        flowThetaNoise: 0.1,
+        flowWidthNoise: 0.11,
+        maxThetaStepDelta: 0.2,
+        thetaDrift: 0.28,
+        flowAdapt: 0.66,
+        catchFlowBlend: 0.68,
+        catchFlowDyNoise: 0.06,
+        catchFlowThetaNoise: 0.08,
+        catchFlowWidthNoise: 0.09,
+        catchMaxThetaStepDelta: 0.18,
+        catchThetaDrift: 0.32,
+        catchFlowAdapt: 0.68,
+        minGapFactor: 0.94,
+        catchMinGapFactor: 0.9,
+        entryMinGapFactor: 0.92,
+        entryThetaRange: [0.4, 0.66],
+        thetaRange: [0.56, 0.94],
+        catchThetaRange: [0.38, 0.76],
+        widthRange: [0.7, 1.0],
+        catchWidthRange: [0.88, 1.2],
         strictFactor: 0.92,
         hardStrictPenalty: 0.045,
         movingSafetyPenalty: 0.06,
-        maxRecentCost: 4.95,
+        maxRecentCost: 5.15,
         recentWindow: 4,
-        maxTypeCounts: { crumbling: 4, bouncy: 2, moving: 4, phasing: 0, conveyor: 1 },
+        maxTypeCounts: { crumbling: 4, bouncy: 1, moving: 4, phasing: 0, conveyor: 1 },
         typeWeights: {
-            solid: 0.49,
+            solid: 0.52,
             crumbling: 0.21,
             moving: 0.18,
-            bouncy: 0.09,
+            bouncy: 0.06,
             conveyor: 0.03,
         },
         moveRange: [0.22, 0.5],
@@ -423,31 +489,48 @@ const ZONE_CONFIGS = [
         targetTop: 59.5,
         platformCount: 20,
         startWidth: 0.95,
-        catchEvery: 3,
-        dyRange: [0.86, 1.22],
+        catchEvery: 4,
+        dyRange: [1.0, 1.28],
         dyJitter: 0.19,
-        catchDyRange: [0.6, 0.94],
+        catchDyRange: [0.76, 1.06],
         catchDyJitter: 0.1,
-        entryThetaRange: [0.36, 0.62],
-        thetaRange: [0.5, 0.92],
-        catchThetaRange: [0.34, 0.74],
-        widthRange: [0.62, 0.92],
-        catchWidthRange: [0.8, 1.1],
-        strictFactor: 0.9,
+        flowBlend: 0.6,
+        flowDyNoise: 0.08,
+        flowThetaNoise: 0.11,
+        flowWidthNoise: 0.1,
+        maxThetaStepDelta: 0.22,
+        thetaDrift: 0.26,
+        flowAdapt: 0.64,
+        catchFlowBlend: 0.66,
+        catchFlowDyNoise: 0.07,
+        catchFlowThetaNoise: 0.09,
+        catchFlowWidthNoise: 0.09,
+        catchMaxThetaStepDelta: 0.2,
+        catchThetaDrift: 0.3,
+        catchFlowAdapt: 0.66,
+        minGapFactor: 1.06,
+        catchMinGapFactor: 1.0,
+        entryMinGapFactor: 1.02,
+        entryThetaRange: [0.56, 0.86],
+        thetaRange: [0.72, 1.12],
+        catchThetaRange: [0.54, 0.9],
+        widthRange: [0.74, 1.04],
+        catchWidthRange: [0.94, 1.22],
+        strictFactor: 0.93,
         hardStrictPenalty: 0.05,
-        movingSafetyPenalty: 0.08,
-        maxRecentCost: 5.25,
+        movingSafetyPenalty: 0.09,
+        maxRecentCost: 5.2,
         recentWindow: 4,
-        maxTypeCounts: { crumbling: 4, bouncy: 2, moving: 4, phasing: 3, conveyor: 3 },
+        maxTypeCounts: { crumbling: 4, bouncy: 1, moving: 3, phasing: 2, conveyor: 2 },
         typeWeights: {
-            solid: 0.32,
-            crumbling: 0.16,
-            moving: 0.18,
-            phasing: 0.14,
-            conveyor: 0.1,
-            bouncy: 0.1,
+            solid: 0.46,
+            crumbling: 0.14,
+            moving: 0.16,
+            phasing: 0.1,
+            conveyor: 0.06,
+            bouncy: 0.08,
         },
-        moveRange: [0.26, 0.58],
+        moveRange: [0.22, 0.5],
         moveSpeed: [1.0, 1.55],
         phaseSpeed: [1.35, 2.1],
         conveyorSpeed: [0.9, 1.35],

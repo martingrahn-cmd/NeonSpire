@@ -12,9 +12,10 @@ const PLATFORM_THICKNESS = 0.2;
 const PLATFORM_DEPTH = 0.8;
 const PLAYER_SIZE = 0.25;
 const GRAVITY = -18;
-const JUMP_VELOCITY = 8;
-const DOUBLE_JUMP_VELOCITY = 10.0;
-const BOUNCE_VELOCITY = 13;
+const JUMP_VELOCITY = 7.0;
+const DOUBLE_JUMP_VELOCITY = 8.6;
+const BOUNCE_VELOCITY = 9.6;
+const BOUNCE_ARM_WINDOW = 0.16;
 const BASE_SPEED = 1.2; // radians/sec
 const DASH_SPEED_MULT = 3.5;
 const DASH_DURATION = 0.3;
@@ -104,6 +105,7 @@ let lastSafeGroundHeight = 0;
 let enemyContactLogTimer = 0;
 let fallOffBaseY = 0;
 let airborneSinceGround = 0;
+let bounceArmTimer = 0;
 const checkpoint = {
     platformIndex: 0,
     theta: 0,
@@ -619,6 +621,7 @@ function resetGame() {
     lastSafeGroundHeight = player.y;
     fallOffBaseY = player.y;
     airborneSinceGround = 0;
+    bounceArmTimer = 0;
     checkpoint.platformIndex = 0;
     checkpoint.theta = player.theta;
     checkpoint.y = player.y;
@@ -782,6 +785,7 @@ function updatePlayer(dt) {
 
     hitInvulnTimer = Math.max(0, hitInvulnTimer - dt);
     enemyContactLogTimer = Math.max(0, enemyContactLogTimer - dt);
+    bounceArmTimer = Math.max(0, bounceArmTimer - dt);
 
     // Speed ramps up: slow start, faster with height
     speedMultiplier = 0.5 + player.y * 0.02;
@@ -806,6 +810,10 @@ function updatePlayer(dt) {
     if (input.actions.reverse) {
         player.direction *= -1;
         audio.playReverse();
+    }
+
+    if (input.actions.jump) {
+        bounceArmTimer = BOUNCE_ARM_WINDOW;
     }
 
     if (input.actions.duck) {
@@ -885,10 +893,13 @@ function updatePlayer(dt) {
                     // Platform-specific behavior
                     switch (p.type) {
                         case 'bouncy':
-                            player.vy = BOUNCE_VELOCITY;
-                            player.grounded = false;
-                            player.jumpsUsed = 1;
-                            audio.playJump();
+                            if (bounceArmTimer > 0 || input.keys['Space'] || input.keys['KeyW']) {
+                                player.vy = BOUNCE_VELOCITY;
+                                player.grounded = false;
+                                player.jumpsUsed = 1;
+                                bounceArmTimer = 0;
+                                audio.playJump();
+                            }
                             break;
                         case 'crumbling':
                             if (p.crumbleTimer < 0) {
@@ -902,7 +913,7 @@ function updatePlayer(dt) {
                             break;
                     }
 
-                    if (p.type !== 'bouncy') {
+                    if (player.grounded) {
                         player.vy = 0;
                         if (!p._landed) {
                             audio.playLand();
@@ -1052,6 +1063,7 @@ function playerHit(reason = 'unknown', details = {}) {
         lastSafeGroundHeight = player.y;
         fallOffBaseY = player.y;
         airborneSinceGround = 0;
+        bounceArmTimer = 0;
         hitInvulnTimer = RESPAWN_INVULN_TIME;
 
         // i-frames without speed burst to avoid unfair launch after respawn.
